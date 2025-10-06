@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      encuestas: {
+        Row: {
+          comentario: string | null
+          estado_kanban: string | null
+          etiquetas: string[] | null
+          fecha_creacion: string | null
+          id: string
+          pregunta1_amabilidad: string
+          pregunta2_tiempo_espera: string
+          pregunta3_resolucion_dudas: string
+          pregunta4_limpieza: string
+          pregunta5_calificacion_general: string
+        }
+        Insert: {
+          comentario?: string | null
+          estado_kanban?: string | null
+          etiquetas?: string[] | null
+          fecha_creacion?: string | null
+          id?: string
+          pregunta1_amabilidad: string
+          pregunta2_tiempo_espera: string
+          pregunta3_resolucion_dudas: string
+          pregunta4_limpieza: string
+          pregunta5_calificacion_general: string
+        }
+        Update: {
+          comentario?: string | null
+          estado_kanban?: string | null
+          etiquetas?: string[] | null
+          fecha_creacion?: string | null
+          id?: string
+          pregunta1_amabilidad?: string
+          pregunta2_tiempo_espera?: string
+          pregunta3_resolucion_dudas?: string
+          pregunta4_limpieza?: string
+          pregunta5_calificacion_general?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
