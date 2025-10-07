@@ -1,67 +1,36 @@
 # Bienvenido al Repositorio de IMV Encuestas
 
-## Información del Proyecto
+Este repositorio contiene el código fuente para el proyecto de encuestas IMV.
 
-**URL**: [https://lovable.dev/projects/1f8872c1-3eaf-429e-a9e6-d7f8c1716ed6](https://lovable.dev/projects/1f8872c1-3eaf-429e-a9e6-d7f8c1716ed6)
+***
 
-## ¿Cómo puedo editar este código?
+## Stack de Tecnologías 🛠️
 
-Hay varias formas de editar tu aplicación.
+Este proyecto está construido con un stack moderno para el desarrollo web:
 
-**Usa Lovable**
+* **Vite**: Herramienta de construcción y servidor de desarrollo ultrarrápido.
+* **React**: Biblioteca para construir interfaces de usuario.
+* **TypeScript**: Superset de JavaScript que añade tipado estático.
+* **Tailwind CSS**: Framework de CSS "utility-first" para un diseño rápido.
+* **shadcn-ui**: Colección de componentes de UI reutilizables.
 
-Simplemente visita el [Proyecto en Lovable](https://lovable.dev/projects/1f8872c1-3eaf-429e-a9e6-d7f8c1716ed6) y comienza a dar instrucciones.
+***
 
-Los cambios realizados a través de Lovable se confirmarán (harán *commit*) automáticamente en este repositorio.
+## Configuración para Desarrollo Local 💻
 
-**Usa tu IDE preferido**
+Para trabajar en este proyecto desde tu propia computadora, necesitarás tener **Node.js** y **npm** instalados.
 
-Si quieres trabajar localmente usando tu propio IDE, puedes clonar este repositorio y subir los cambios. Los cambios subidos (*push*) también se reflejarán en Lovable.
-
-El único requisito es tener Node.js y npm instalados - [instalar con nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Sigue estos pasos:
+Sigue estos pasos para ponerlo en marcha:
 
 ```sh
-# Paso 1: Clona el repositorio usando la URL de Git del proyecto.
-git clone <TU_URL_DE_GIT>
+# 1. Clona el repositorio en tu máquina local.
+git clone <https://github.com/ecuapplications/imv-insight-quest.git>
 
-# Paso 2: Navega al directorio del proyecto.
-cd <NOMBRE_DE_TU_PROYECTO>
+# 2. Navega al directorio del proyecto.
+cd <imv-insight-quest>
 
-# Paso 3: Instala las dependencias necesarias.
-npm i
+# 3. Instala todas las dependencias necesarias.
+npm install
 
-# Paso 4: Inicia el servidor de desarrollo con recarga automática y vista previa instantánea.
+# 4. Inicia el servidor de desarrollo.
 npm run dev
-```
-
-**Edita un archivo directamente en GitHub**
-
-  - Navega al archivo o archivos deseados.
-  - Haz clic en el botón "Edit" (icono de lápiz) en la parte superior derecha de la vista del archivo.
-  - Realiza tus cambios y confírmalos (*commit*).
-
-**Usa GitHub Codespaces**
-
-  - Navega a la página principal de tu repositorio.
-  - Haz clic en el botón "Code" (botón verde) cerca de la parte superior derecha.
-  - Selecciona la pestaña "Codespaces".
-  - Haz clic en "New codespace" para iniciar un nuevo entorno de Codespace.
-  - Edita los archivos directamente dentro del Codespace y confirma (*commit*) y sube (*push*) tus cambios cuando hayas terminado.
-
-## ¿Qué tecnologías se utilizan en este proyecto?
-
-Este proyecto está construido con:
-
-  - Vite
-  - TypeScript
-  - React
-  - shadcn-ui
-  - Tailwind CSS
-
-## ¿Cómo puedo desplegar este proyecto?
-
-Simplemente abre [Lovable](https://lovable.dev/projects/1f8872c1-3eaf-429e-a9e6-d7f8c1716ed6) y haz clic en Share -\> Publish.
-
-## ¿Puedo conectar un dominio personalizado a mi proyecto de Lovable?
