@@ -18,6 +18,7 @@ type Encuesta = {
   pregunta3_resolucion_dudas: string;
   pregunta4_limpieza: string;
   pregunta5_calificacion_general: string;
+  notas_internas: string | null;
 };
 
 const ESTADOS = [
@@ -41,6 +42,9 @@ const KanbanTab = () => {
   const [encuestas, setEncuestas] = useState<Encuesta[]>([]);
   const [filteredEncuestas, setFilteredEncuestas] = useState<Encuesta[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [selectedDay, setSelectedDay] = useState<string>("all");
   const [selectedEncuesta, setSelectedEncuesta] = useState<Encuesta | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,7 @@ const KanbanTab = () => {
 
   useEffect(() => {
     filterEncuestas();
-  }, [encuestas, selectedTag]);
+  }, [encuestas, selectedTag, selectedYear, selectedMonth, selectedDay]);
 
   const fetchEncuestas = async () => {
     setLoading(true);
@@ -80,13 +84,54 @@ const KanbanTab = () => {
   };
 
   const filterEncuestas = () => {
-    if (selectedTag === "all") {
-      setFilteredEncuestas(encuestas);
-    } else {
-      setFilteredEncuestas(
-        encuestas.filter((e) => e.etiquetas && e.etiquetas.includes(selectedTag))
-      );
+    let filtered = encuestas;
+
+    // Filter by tag
+    if (selectedTag === "sin-etiqueta") {
+      filtered = filtered.filter((e) => !e.etiquetas || e.etiquetas.length === 0);
+    } else if (selectedTag !== "all") {
+      filtered = filtered.filter((e) => e.etiquetas && e.etiquetas.includes(selectedTag));
     }
+
+    // Filter by date
+    filtered = filtered.filter((e) => {
+      const fecha = new Date(e.fecha_creacion);
+      
+      if (selectedYear !== "all") {
+        if (fecha.getFullYear() !== parseInt(selectedYear)) return false;
+        
+        if (selectedMonth !== "all") {
+          if (fecha.getMonth() !== parseInt(selectedMonth)) return false;
+          
+          if (selectedDay !== "all") {
+            if (fecha.getDate() !== parseInt(selectedDay)) return false;
+          }
+        }
+      }
+      
+      return true;
+    });
+
+    setFilteredEncuestas(filtered);
+  };
+
+  // Get unique years from encuestas
+  const getAvailableYears = () => {
+    const years = new Set<number>();
+    encuestas.forEach((e) => {
+      const year = new Date(e.fecha_creacion).getFullYear();
+      years.add(year);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  };
+
+  // Get days in selected month
+  const getDaysInMonth = () => {
+    if (selectedYear === "all" || selectedMonth === "all") return [];
+    const year = parseInt(selectedYear);
+    const month = parseInt(selectedMonth);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
   };
 
   const handleDragStart = (e: React.DragEvent, encuestaId: string) => {
@@ -140,27 +185,107 @@ const KanbanTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Filter */}
+      {/* Filters */}
       <Card className="shadow-md">
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
-              <span className="font-medium">Filtrar por etiqueta:</span>
+          <div className="space-y-4">
+            {/* Tag Filter */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2 min-w-[160px]">
+                <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
+                <span className="font-medium">Filtrar por etiqueta:</span>
+              </div>
+              <Select value={selectedTag} onValueChange={setSelectedTag}>
+                <SelectTrigger className="w-[240px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las etiquetas</SelectItem>
+                  <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
+                  {ETIQUETAS_DISPONIBLES.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={selectedTag} onValueChange={setSelectedTag}>
-              <SelectTrigger className="w-[240px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las etiquetas</SelectItem>
-                {ETIQUETAS_DISPONIBLES.map((tag) => (
-                  <SelectItem key={tag} value={tag}>
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* Date Filters */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2 min-w-[160px]">
+                <Filter className="h-5 w-5 text-[hsl(var(--imv-purple))]" />
+                <span className="font-medium">Filtrar por fecha:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {/* Year Filter */}
+                <Select value={selectedYear} onValueChange={(value) => {
+                  setSelectedYear(value);
+                  setSelectedMonth("all");
+                  setSelectedDay("all");
+                }}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los años</SelectItem>
+                    {getAvailableYears().map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Month Filter */}
+                <Select 
+                  value={selectedMonth} 
+                  onValueChange={(value) => {
+                    setSelectedMonth(value);
+                    setSelectedDay("all");
+                  }}
+                  disabled={selectedYear === "all"}
+                >
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
+                    <SelectItem value="0">Enero</SelectItem>
+                    <SelectItem value="1">Febrero</SelectItem>
+                    <SelectItem value="2">Marzo</SelectItem>
+                    <SelectItem value="3">Abril</SelectItem>
+                    <SelectItem value="4">Mayo</SelectItem>
+                    <SelectItem value="5">Junio</SelectItem>
+                    <SelectItem value="6">Julio</SelectItem>
+                    <SelectItem value="7">Agosto</SelectItem>
+                    <SelectItem value="8">Septiembre</SelectItem>
+                    <SelectItem value="9">Octubre</SelectItem>
+                    <SelectItem value="10">Noviembre</SelectItem>
+                    <SelectItem value="11">Diciembre</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Day Filter */}
+                <Select 
+                  value={selectedDay} 
+                  onValueChange={setSelectedDay}
+                  disabled={selectedMonth === "all"}
+                >
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Día" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los días</SelectItem>
+                    {getDaysInMonth().map((day) => (
+                      <SelectItem key={day} value={day.toString()}>
+                        {day}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

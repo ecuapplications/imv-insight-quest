@@ -21,6 +21,7 @@ export type Database = {
           etiquetas: string[] | null
           fecha_creacion: string | null
           id: string
+          notas_internas: string | null
           pregunta1_amabilidad: string
           pregunta2_tiempo_espera: string
           pregunta3_resolucion_dudas: string
@@ -33,6 +34,7 @@ export type Database = {
           etiquetas?: string[] | null
           fecha_creacion?: string | null
           id?: string
+          notas_internas?: string | null
           pregunta1_amabilidad: string
           pregunta2_tiempo_espera: string
           pregunta3_resolucion_dudas: string
@@ -45,6 +47,7 @@ export type Database = {
           etiquetas?: string[] | null
           fecha_creacion?: string | null
           id?: string
+          notas_internas?: string | null
           pregunta1_amabilidad?: string
           pregunta2_tiempo_espera?: string
           pregunta3_resolucion_dudas?: string

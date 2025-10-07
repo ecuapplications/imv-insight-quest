@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { X, Plus } from "lucide-react";
@@ -17,6 +19,7 @@ type Encuesta = {
   pregunta3_resolucion_dudas: string;
   pregunta4_limpieza: string;
   pregunta5_calificacion_general: string;
+  notas_internas: string | null;
 };
 
 type CommentModalProps = {
@@ -29,6 +32,8 @@ type CommentModalProps = {
 
 const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles }: CommentModalProps) => {
   const [selectedTags, setSelectedTags] = useState<string[]>(encuesta.etiquetas || []);
+  const [newTag, setNewTag] = useState("");
+  const [notasInternas, setNotasInternas] = useState(encuesta.notas_internas || "");
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -36,21 +41,36 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
     );
   };
 
+  const handleAddCustomTag = () => {
+    const trimmedTag = newTag.trim();
+    if (trimmedTag && !selectedTags.includes(trimmedTag)) {
+      setSelectedTags((prev) => [...prev, trimmedTag]);
+      setNewTag("");
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setSelectedTags((prev) => prev.filter((t) => t !== tag));
+  };
+
   const handleSave = async () => {
     try {
       const { error } = await supabase
         .from("encuestas")
-        .update({ etiquetas: selectedTags })
+        .update({ 
+          etiquetas: selectedTags,
+          notas_internas: notasInternas 
+        })
         .eq("id", encuesta.id);
 
       if (error) throw error;
 
-      toast.success("Etiquetas actualizadas");
+      toast.success("Cambios guardados exitosamente");
       onUpdate();
       onClose();
     } catch (error) {
-      console.error("Error updating tags:", error);
-      toast.error("Error al actualizar etiquetas");
+      console.error("Error updating data:", error);
+      toast.error("Error al guardar cambios");
     }
   };
 
@@ -101,7 +121,9 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
               <Plus className="h-4 w-4" />
               Etiquetas:
             </h4>
-            <div className="flex flex-wrap gap-2">
+            
+            {/* Predefined Tags */}
+            <div className="flex flex-wrap gap-2 mb-3">
               {etiquetasDisponibles.map((tag) => (
                 <Badge
                   key={tag}
@@ -118,6 +140,62 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
                 </Badge>
               ))}
             </div>
+
+            {/* Selected Custom Tags */}
+            {selectedTags.filter(tag => !etiquetasDisponibles.includes(tag)).length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-[hsl(var(--imv-gray))] mb-2">Etiquetas personalizadas:</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTags
+                    .filter(tag => !etiquetasDisponibles.includes(tag))
+                    .map((tag) => (
+                      <Badge
+                        key={tag}
+                        className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black border-0"
+                      >
+                        {tag}
+                        <X 
+                          className="ml-1 h-3 w-3 cursor-pointer" 
+                          onClick={() => handleRemoveTag(tag)}
+                        />
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Custom Tag */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Crear etiqueta personalizada..."
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    handleAddCustomTag();
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button 
+                onClick={handleAddCustomTag}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Internal Notes */}
+          <div>
+            <h4 className="font-semibold mb-2">Notas Internas:</h4>
+            <Textarea
+              placeholder="Escribir notas internas (solo visible para administradores)..."
+              value={notasInternas}
+              onChange={(e) => setNotasInternas(e.target.value)}
+              className="min-h-[100px]"
+            />
           </div>
 
           {/* Metadata */}
