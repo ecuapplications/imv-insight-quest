@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X, Plus } from "lucide-react";
+import { X, Plus, CalendarIcon, Edit, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type Encuesta = {
   id: string;
@@ -30,10 +35,194 @@ type CommentModalProps = {
   etiquetasDisponibles: string[];
 };
 
+type Tarea = {
+  id?: string;
+  nombre: string;
+  descripcion: string;
+  responsable_id: string;
+  fecha_vencimiento: Date;
+  estado: "Pendiente" | "Vencida" | "Descartada" | "Resuelta";
+};
+
+type Responsable = {
+  id: string;
+  nombre: string;
+  email: string;
+};
+
 const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles }: CommentModalProps) => {
   const [selectedTags, setSelectedTags] = useState<string[]>(encuesta.etiquetas || []);
   const [newTag, setNewTag] = useState("");
   const [notasInternas, setNotasInternas] = useState(encuesta.notas_internas || "");
+  
+  // Task management state
+  const [tareas, setTareas] = useState<Tarea[]>([]);
+  const [responsables, setResponsables] = useState<Responsable[]>([]);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskForm, setTaskForm] = useState<Tarea>({
+    nombre: "",
+    descripcion: "",
+    responsable_id: "",
+    fecha_vencimiento: new Date(),
+    estado: "Pendiente",
+  });
+  
+  // New responsable form
+  const [showNewResponsable, setShowNewResponsable] = useState(false);
+  const [newResponsable, setNewResponsable] = useState({ nombre: "", email: "" });
+
+  // Load tasks and responsables
+  useEffect(() => {
+    if (open) {
+      loadTareas();
+      loadResponsables();
+    }
+  }, [open, encuesta.id]);
+
+  const loadTareas = async () => {
+    const { data, error } = await supabase
+      .from("tareas")
+      .select("*")
+      .eq("encuesta_id", encuesta.id);
+
+    if (error) {
+      console.error("Error loading tasks:", error);
+      return;
+    }
+
+    setTareas(data.map(t => ({
+      ...t,
+      fecha_vencimiento: new Date(t.fecha_vencimiento)
+    })));
+  };
+
+  const loadResponsables = async () => {
+    const { data, error } = await supabase
+      .from("responsables")
+      .select("*")
+      .order("nombre");
+
+    if (error) {
+      console.error("Error loading responsables:", error);
+      return;
+    }
+
+    setResponsables(data);
+  };
+
+  const handleAddResponsable = async () => {
+    if (!newResponsable.nombre.trim() || !newResponsable.email.trim()) {
+      toast.error("Nombre y email son requeridos");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("responsables")
+      .insert([newResponsable])
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Error al crear responsable");
+      console.error(error);
+      return;
+    }
+
+    setResponsables([...responsables, data]);
+    setTaskForm({ ...taskForm, responsable_id: data.id });
+    setNewResponsable({ nombre: "", email: "" });
+    setShowNewResponsable(false);
+    toast.success("Responsable creado exitosamente");
+  };
+
+  const handleSaveTask = async () => {
+    if (!taskForm.nombre.trim() || !taskForm.responsable_id) {
+      toast.error("Nombre y responsable son requeridos");
+      return;
+    }
+
+    if (editingTaskId) {
+      // Update existing task
+      const { error } = await supabase
+        .from("tareas")
+        .update({
+          nombre: taskForm.nombre,
+          descripcion: taskForm.descripcion,
+          responsable_id: taskForm.responsable_id,
+          fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
+          estado: taskForm.estado,
+        })
+        .eq("id", editingTaskId);
+
+      if (error) {
+        toast.error("Error al actualizar tarea");
+        console.error(error);
+        return;
+      }
+
+      toast.success("Tarea actualizada");
+    } else {
+      // Create new task
+      const { error } = await supabase
+        .from("tareas")
+        .insert([{
+          encuesta_id: encuesta.id,
+          nombre: taskForm.nombre,
+          descripcion: taskForm.descripcion,
+          responsable_id: taskForm.responsable_id,
+          fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
+          estado: taskForm.estado,
+        }]);
+
+      if (error) {
+        toast.error("Error al crear tarea");
+        console.error(error);
+        return;
+      }
+
+      toast.success("Tarea creada");
+    }
+
+    setShowTaskForm(false);
+    setEditingTaskId(null);
+    setTaskForm({
+      nombre: "",
+      descripcion: "",
+      responsable_id: "",
+      fecha_vencimiento: new Date(),
+      estado: "Pendiente",
+    });
+    loadTareas();
+  };
+
+  const handleEditTask = (tarea: any) => {
+    setTaskForm({
+      nombre: tarea.nombre,
+      descripcion: tarea.descripcion,
+      responsable_id: tarea.responsable_id,
+      fecha_vencimiento: new Date(tarea.fecha_vencimiento),
+      estado: tarea.estado,
+    });
+    setEditingTaskId(tarea.id);
+    setShowTaskForm(true);
+  };
+
+  const handleDeleteTask = async (tareaId: string) => {
+    const { error } = await supabase
+      .from("tareas")
+      .delete()
+      .eq("id", tareaId);
+
+    if (error) {
+      toast.error("Error al eliminar tarea");
+      console.error(error);
+      return;
+    }
+
+    toast.success("Tarea eliminada");
+    loadTareas();
+  };
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -196,6 +385,228 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
               onChange={(e) => setNotasInternas(e.target.value)}
               className="min-h-[100px]"
             />
+          </div>
+
+          {/* Tasks Section */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold">Tareas:</h4>
+              <Button
+                onClick={() => {
+                  setShowTaskForm(!showTaskForm);
+                  setEditingTaskId(null);
+                  setTaskForm({
+                    nombre: "",
+                    descripcion: "",
+                    responsable_id: "",
+                    fecha_vencimiento: new Date(),
+                    estado: "Pendiente",
+                  });
+                }}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Añadir Tarea
+              </Button>
+            </div>
+
+            {/* Task Form */}
+            {showTaskForm && (
+              <div className="border rounded-lg p-4 mb-4 space-y-3 bg-gray-50">
+                <Input
+                  placeholder="Nombre de la tarea"
+                  value={taskForm.nombre}
+                  onChange={(e) => setTaskForm({ ...taskForm, nombre: e.target.value })}
+                />
+                
+                <Textarea
+                  placeholder="Descripción de la tarea"
+                  value={taskForm.descripcion}
+                  onChange={(e) => setTaskForm({ ...taskForm, descripcion: e.target.value })}
+                  className="min-h-[80px]"
+                />
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Responsable:</label>
+                  <Select
+                    value={taskForm.responsable_id}
+                    onValueChange={(value) => {
+                      if (value === "new") {
+                        setShowNewResponsable(true);
+                      } else {
+                        setTaskForm({ ...taskForm, responsable_id: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar responsable" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {responsables.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.nombre} ({r.email})
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new">
+                        <Plus className="h-4 w-4 inline mr-1" />
+                        Añadir nuevo responsable
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {showNewResponsable && (
+                    <div className="mt-2 p-3 border rounded bg-white space-y-2">
+                      <Input
+                        placeholder="Nombre del responsable"
+                        value={newResponsable.nombre}
+                        onChange={(e) => setNewResponsable({ ...newResponsable, nombre: e.target.value })}
+                      />
+                      <Input
+                        placeholder="Email del responsable"
+                        type="email"
+                        value={newResponsable.email}
+                        onChange={(e) => setNewResponsable({ ...newResponsable, email: e.target.value })}
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={handleAddResponsable} size="sm">Guardar</Button>
+                        <Button onClick={() => setShowNewResponsable(false)} variant="outline" size="sm">
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Fecha de Vencimiento:</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !taskForm.fecha_vencimiento && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {taskForm.fecha_vencimiento ? (
+                          format(taskForm.fecha_vencimiento, "PPP")
+                        ) : (
+                          <span>Seleccionar fecha</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={taskForm.fecha_vencimiento}
+                        onSelect={(date) => date && setTaskForm({ ...taskForm, fecha_vencimiento: date })}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Estado:</label>
+                  <Select
+                    value={taskForm.estado}
+                    onValueChange={(value: any) => setTaskForm({ ...taskForm, estado: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Pendiente">Pendiente</SelectItem>
+                      <SelectItem value="Vencida">Vencida</SelectItem>
+                      <SelectItem value="Descartada">Descartada</SelectItem>
+                      <SelectItem value="Resuelta">Resuelta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveTask}>
+                    {editingTaskId ? "Actualizar" : "Guardar"} Tarea
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowTaskForm(false);
+                      setEditingTaskId(null);
+                    }}
+                    variant="outline"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Task List */}
+            <div className="space-y-2">
+              {tareas.map((tarea: any) => {
+                const responsable = responsables.find(r => r.id === tarea.responsable_id);
+                return (
+                  <div
+                    key={tarea.id}
+                    className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h5 className="font-medium">{tarea.nombre}</h5>
+                        {tarea.descripcion && (
+                          <p className="text-sm text-[hsl(var(--imv-gray))] mt-1">{tarea.descripcion}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                          <Badge variant="outline">
+                            {responsable?.nombre || "Sin responsable"}
+                          </Badge>
+                          <Badge variant="outline">
+                            {format(new Date(tarea.fecha_vencimiento), "dd/MM/yyyy")}
+                          </Badge>
+                          <Badge
+                            className={
+                              tarea.estado === "Resuelta"
+                                ? "bg-green-100 text-green-800"
+                                : tarea.estado === "Vencida"
+                                ? "bg-red-100 text-red-800"
+                                : tarea.estado === "Descartada"
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }
+                          >
+                            {tarea.estado}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <Button
+                          onClick={() => handleEditTask(tarea)}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteTask(tarea.id)}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {tareas.length === 0 && !showTaskForm && (
+                <p className="text-sm text-[hsl(var(--imv-gray))] text-center py-4">
+                  No hay tareas asignadas
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Metadata */}

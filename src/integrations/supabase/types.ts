@@ -56,6 +56,78 @@ export type Database = {
         }
         Relationships: []
       }
+      responsables: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
+      tareas: {
+        Row: {
+          created_at: string
+          descripcion: string | null
+          encuesta_id: string
+          estado: Database["public"]["Enums"]["estado_tarea"]
+          fecha_vencimiento: string
+          id: string
+          nombre: string
+          responsable_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion?: string | null
+          encuesta_id: string
+          estado?: Database["public"]["Enums"]["estado_tarea"]
+          fecha_vencimiento: string
+          id?: string
+          nombre: string
+          responsable_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string | null
+          encuesta_id?: string
+          estado?: Database["public"]["Enums"]["estado_tarea"]
+          fecha_vencimiento?: string
+          id?: string
+          nombre?: string
+          responsable_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tareas_encuesta_id_fkey"
+            columns: ["encuesta_id"]
+            isOneToOne: false
+            referencedRelation: "encuestas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tareas_responsable_id_fkey"
+            columns: ["responsable_id"]
+            isOneToOne: false
+            referencedRelation: "responsables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -64,7 +136,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      estado_tarea: "Pendiente" | "Vencida" | "Descartada" | "Resuelta"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -191,6 +263,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      estado_tarea: ["Pendiente", "Vencida", "Descartada", "Resuelta"],
+    },
   },
 } as const
