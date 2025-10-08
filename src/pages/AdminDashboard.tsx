@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("kanban"); // Cambiado a 'kanban' por defecto
+  const [activeTab, setActiveTab] = useState("kanban");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -34,34 +34,38 @@ const AdminDashboard = () => {
   };
 
   return (
-    // 1. El componente <Tabs> ahora envuelve toda la página
     <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-screen bg-[hsl(var(--kanban-bg))]">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          {/* Logo y Título */}
-<div>
-  <img 
-    src="/logo.png" 
-    alt="Logotipo de IMV Health Digestive" 
-    className="h-16 w-auto" // Ajustado a h-16 como pediste
-  />
-  <p className="text-sm text-[hsl(var(--imv-gray))] mt-1">Panel de Administración de Encuestas</p>
-</div>
+          
+          <div>
+            <img 
+              src="/logo.png" 
+              alt="Logotipo de IMV Health Digestive" 
+              className="h-16 w-auto"
+            />
+            <p className="text-sm text-[hsl(var(--imv-gray))] mt-1">Panel de Administración de Encuestas</p>
+          </div>
 
-          {/* 2. La lista de pestañas (TabsList) se ha movido aquí */}
-          <TabsList className="bg-white">
-            <TabsTrigger value="stats" className="data-[state=active]:bg-gray-100 data-[state=active]:text-gray-800">
+          {/* --- ESTILOS CORREGIDOS EN LAS PESTAÑAS --- */}
+          <TabsList className="p-1 h-auto bg-gray-100 rounded-lg">
+            <TabsTrigger 
+              value="stats" 
+              className="px-4 py-2 text-muted-foreground rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black data-[state=active]:shadow-md data-[state=active]:font-semibold"
+            >
               <BarChart3 className="mr-2 h-4 w-4" />
               Estadísticas
             </TabsTrigger>
-            <TabsTrigger value="kanban" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black">
+            <TabsTrigger 
+              value="kanban" 
+              className="px-4 py-2 text-muted-foreground rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black data-[state=active]:shadow-md data-[state=active]:font-semibold"
+            >
               <Kanban className="mr-2 h-4 w-4" />
               Gestión de Comentarios
             </TabsTrigger>
           </TabsList>
 
-          {/* Botón de Cerrar Sesión */}
           <Button
             onClick={handleLogout}
             variant="outline"
@@ -75,11 +79,9 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        {/* 3. El contenido de las pestañas (<TabsContent>) permanece aquí */}
         <TabsContent value="stats" className="space-y-6">
           <StatsTab />
         </TabsContent>
-
         <TabsContent value="kanban" className="space-y-6">
           <KanbanTab />
         </TabsContent>
