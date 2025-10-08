@@ -5,7 +5,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CommentModal from "./CommentModal";
-import { Filter } from "lucide-react";
+import { Filter, MoveRight, ListChecks } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Encuesta = {
   id: string;
@@ -19,6 +32,11 @@ type Encuesta = {
   pregunta4_limpieza: string;
   pregunta5_calificacion_general: string;
   notas_internas: string | null;
+  tarea?: {
+    responsable_nombre: string;
+    fecha_vencimiento: string;
+    estado: string;
+  } | null;
 };
 
 const ESTADOS = [
@@ -67,14 +85,65 @@ const KanbanTab = () => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: encuestasData, error } = await supabase
         .from("encuestas")
         .select("*")
         .not("comentario", "is", null)
         .order("fecha_creacion", { ascending: false });
 
       if (error) throw error;
-      setEncuestas(data || []);
+
+      // Cargar tareas y responsables para cada encuesta
+      const encuestasConTareas = await Promise.all(
+        (encuestasData || []).map(async (encuesta) => {
+          const { data: tareasData } = await supabase
+            .from("tareas")
+            .select(`
+              *,
+              responsables (nombre)
+            `)
+            .eq("encuesta_id", encuesta.id)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .single();
+
+          // Verificar si la tarea está vencida
+          if (tareasData) {
+            const fechaVencimiento = new Date(tareasData.fecha_vencimiento);
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            fechaVencimiento.setHours(0, 0, 0, 0);
+
+            let estadoActual = tareasData.estado;
+
+            // Auto-actualizar a Vencida si corresponde
+            if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
+              estadoActual = "Vencida";
+              // Actualizar en base de datos
+              await supabase
+                .from("tareas")
+                .update({ estado: "Vencida" })
+                .eq("id", tareasData.id);
+            }
+
+            return {
+              ...encuesta,
+              tarea: tareasData ? {
+                responsable_nombre: tareasData.responsables?.nombre || "Sin responsable",
+                fecha_vencimiento: tareasData.fecha_vencimiento,
+                estado: estadoActual,
+              } : null,
+            };
+          }
+
+          return {
+            ...encuesta,
+            tarea: null,
+          };
+        })
+      );
+
+      setEncuestas(encuestasConTareas);
     } catch (error) {
       console.error("Error fetching encuestas:", error);
       toast.error("Error al cargar los comentarios");
@@ -171,6 +240,28 @@ const KanbanTab = () => {
     }
   };
 
+  const handleMoveCard = async (encuestaId: string, nuevoEstado: string) => {
+    try {
+      const { error } = await supabase
+        .from("encuestas")
+        .update({ estado_kanban: nuevoEstado })
+        .eq("id", encuestaId);
+
+      if (error) throw error;
+
+      setEncuestas((prev) =>
+        prev.map((enc) =>
+          enc.id === encuestaId ? { ...enc, estado_kanban: nuevoEstado } : enc
+        )
+      );
+
+      toast.success("Comentario movido exitosamente");
+    } catch (error) {
+      console.error("Error updating estado:", error);
+      toast.error("Error al mover el comentario");
+    }
+  };
+
   const getEncuestasByEstado = (estado: string) => {
     return filteredEncuestas.filter((e) => e.estado_kanban === estado);
   };
@@ -185,107 +276,97 @@ const KanbanTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
+      {/* Filtros */}
       <Card className="shadow-md">
         <CardContent className="pt-6">
-          <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
+            <span className="font-medium text-lg">Filtros</span>
+          </div>
+          
+          <div className="flex flex-col lg:flex-row gap-3">
             {/* Tag Filter */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
-                <span className="font-medium">Filtrar por etiqueta:</span>
-              </div>
-              <Select value={selectedTag} onValueChange={setSelectedTag}>
-                <SelectTrigger className="w-[240px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las etiquetas</SelectItem>
-                  <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
-                  {ETIQUETAS_DISPONIBLES.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={selectedTag} onValueChange={setSelectedTag}>
+              <SelectTrigger className="w-full lg:w-[240px]">
+                <SelectValue placeholder="Etiqueta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las etiquetas</SelectItem>
+                <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
+                {ETIQUETAS_DISPONIBLES.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            {/* Date Filters */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center gap-2 min-w-[160px]">
-                <Filter className="h-5 w-5 text-[hsl(var(--imv-purple))]" />
-                <span className="font-medium">Filtrar por fecha:</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {/* Year Filter */}
-                <Select value={selectedYear} onValueChange={(value) => {
-                  setSelectedYear(value);
-                  setSelectedMonth("all");
-                  setSelectedDay("all");
-                }}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Año" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los años</SelectItem>
-                    {getAvailableYears().map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Year Filter */}
+            <Select value={selectedYear} onValueChange={(value) => {
+              setSelectedYear(value);
+              setSelectedMonth("all");
+              setSelectedDay("all");
+            }}>
+              <SelectTrigger className="w-full lg:w-[140px]">
+                <SelectValue placeholder="Año" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los años</SelectItem>
+                {getAvailableYears().map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-                {/* Month Filter */}
-                <Select 
-                  value={selectedMonth} 
-                  onValueChange={(value) => {
-                    setSelectedMonth(value);
-                    setSelectedDay("all");
-                  }}
-                  disabled={selectedYear === "all"}
-                >
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Mes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los meses</SelectItem>
-                    <SelectItem value="0">Enero</SelectItem>
-                    <SelectItem value="1">Febrero</SelectItem>
-                    <SelectItem value="2">Marzo</SelectItem>
-                    <SelectItem value="3">Abril</SelectItem>
-                    <SelectItem value="4">Mayo</SelectItem>
-                    <SelectItem value="5">Junio</SelectItem>
-                    <SelectItem value="6">Julio</SelectItem>
-                    <SelectItem value="7">Agosto</SelectItem>
-                    <SelectItem value="8">Septiembre</SelectItem>
-                    <SelectItem value="9">Octubre</SelectItem>
-                    <SelectItem value="10">Noviembre</SelectItem>
-                    <SelectItem value="11">Diciembre</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Month Filter */}
+            <Select 
+              value={selectedMonth} 
+              onValueChange={(value) => {
+                setSelectedMonth(value);
+                setSelectedDay("all");
+              }}
+              disabled={selectedYear === "all"}
+            >
+              <SelectTrigger className="w-full lg:w-[140px]">
+                <SelectValue placeholder="Mes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los meses</SelectItem>
+                <SelectItem value="0">Enero</SelectItem>
+                <SelectItem value="1">Febrero</SelectItem>
+                <SelectItem value="2">Marzo</SelectItem>
+                <SelectItem value="3">Abril</SelectItem>
+                <SelectItem value="4">Mayo</SelectItem>
+                <SelectItem value="5">Junio</SelectItem>
+                <SelectItem value="6">Julio</SelectItem>
+                <SelectItem value="7">Agosto</SelectItem>
+                <SelectItem value="8">Septiembre</SelectItem>
+                <SelectItem value="9">Octubre</SelectItem>
+                <SelectItem value="10">Noviembre</SelectItem>
+                <SelectItem value="11">Diciembre</SelectItem>
+              </SelectContent>
+            </Select>
 
-                {/* Day Filter */}
-                <Select 
-                  value={selectedDay} 
-                  onValueChange={setSelectedDay}
-                  disabled={selectedMonth === "all"}
-                >
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Día" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los días</SelectItem>
-                    {getDaysInMonth().map((day) => (
-                      <SelectItem key={day} value={day.toString()}>
-                        {day}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Day Filter */}
+            <Select 
+              value={selectedDay} 
+              onValueChange={setSelectedDay}
+              disabled={selectedMonth === "all"}
+            >
+              <SelectTrigger className="w-full lg:w-[120px]">
+                <SelectValue placeholder="Día" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los días</SelectItem>
+                {getDaysInMonth().map((day) => (
+                  <SelectItem key={day} value={day.toString()}>
+                    {day}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -312,11 +393,47 @@ const KanbanTab = () => {
                     key={encuesta.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, encuesta.id)}
-                    onClick={() => setSelectedEncuesta(encuesta)}
-                    className="cursor-pointer hover:shadow-lg transition-shadow bg-white"
+                    className="cursor-pointer hover:shadow-lg transition-shadow bg-white relative"
                   >
-                    <CardContent className="p-4 space-y-2">
-                      <p className="text-sm line-clamp-3">{encuesta.comentario}</p>
+                    <CardContent className="p-4 space-y-2" onClick={() => setSelectedEncuesta(encuesta)}>
+                      {/* Move button */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <DropdownMenu>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-center shadow-md z-10"
+                                  aria-label="Mover tarjeta"
+                                >
+                                  <MoveRight className="h-4 w-4 text-white" />
+                                </button>
+                              </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Mover tarjeta a:</p>
+                            </TooltipContent>
+                            <DropdownMenuContent align="end" className="w-64">
+                              {ESTADOS.filter((e) => e !== estado).map((destino) => (
+                                <DropdownMenuItem
+                                  key={destino}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveCard(encuesta.id, destino);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  {destino}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <p className="text-sm line-clamp-3 pr-8">{encuesta.comentario}</p>
+                      
                       <div className="flex flex-wrap gap-1">
                         {encuesta.etiquetas?.map((tag) => (
                           <Badge
@@ -328,6 +445,34 @@ const KanbanTab = () => {
                           </Badge>
                         ))}
                       </div>
+
+                      {/* Resumen de Tarea */}
+                      {encuesta.tarea && (
+                        <div className="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-200 mt-2">
+                          <ListChecks className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                          <span className="font-medium truncate">{encuesta.tarea.responsable_nombre}</span>
+                          <span className="text-[hsl(var(--imv-gray))]">•</span>
+                          <span className="text-[hsl(var(--imv-gray))]">
+                            {new Date(encuesta.tarea.fecha_vencimiento).toLocaleDateString("es-ES", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric"
+                            })}
+                          </span>
+                          <Badge
+                            className={cn(
+                              "ml-auto flex-shrink-0",
+                              encuesta.tarea.estado === "Pendiente" && "bg-yellow-200 text-yellow-900 hover:bg-yellow-200",
+                              encuesta.tarea.estado === "Resuelta" && "bg-green-200 text-green-900 hover:bg-green-200",
+                              encuesta.tarea.estado === "Vencida" && "bg-red-200 text-red-900 hover:bg-red-200",
+                              encuesta.tarea.estado === "Descartada" && "bg-gray-200 text-gray-900 hover:bg-gray-200"
+                            )}
+                          >
+                            {encuesta.tarea.estado}
+                          </Badge>
+                        </div>
+                      )}
+
                       <p className="text-xs text-[hsl(var(--imv-gray))]">
                         {new Date(encuesta.fecha_creacion).toLocaleDateString("es-ES")}
                       </p>

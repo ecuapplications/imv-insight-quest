@@ -142,6 +142,18 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
       return;
     }
 
+    // Determinar el estado correcto
+    let estadoFinal = taskForm.estado;
+    const fechaVencimiento = new Date(taskForm.fecha_vencimiento);
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    fechaVencimiento.setHours(0, 0, 0, 0);
+
+    // Si es una tarea vencida que se está replanificando con fecha futura, volver a Pendiente
+    if (taskForm.estado === "Vencida" && fechaVencimiento > hoy) {
+      estadoFinal = "Pendiente";
+    }
+
     if (editingTaskId) {
       // Update existing task
       const { error } = await supabase
@@ -151,7 +163,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
           descripcion: taskForm.descripcion,
           responsable_id: taskForm.responsable_id,
           fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
-          estado: taskForm.estado,
+          estado: estadoFinal,
         })
         .eq("id", editingTaskId);
 
@@ -172,7 +184,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
           descripcion: taskForm.descripcion,
           responsable_id: taskForm.responsable_id,
           fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
-          estado: taskForm.estado,
+          estado: estadoFinal,
         }]);
 
       if (error) {
@@ -520,7 +532,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Pendiente">Pendiente</SelectItem>
-                      <SelectItem value="Vencida">Vencida</SelectItem>
                       <SelectItem value="Descartada">Descartada</SelectItem>
                       <SelectItem value="Resuelta">Resuelta</SelectItem>
                     </SelectContent>
