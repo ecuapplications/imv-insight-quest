@@ -57,6 +57,13 @@ const AdminLogin = () => {
             <Lock className="h-6 w-6 text-black" />
           </div>
           <CardTitle className="text-2xl font-bold">Panel de Administración</CardTitle>
+          <div className="py-4">
+            <img 
+              src="/logo.png" // Asegúrate de que este sea el nombre de tu archivo
+              alt="Logotipo de IMV Health Digestive" 
+              className="mx-auto h-16 w-auto" // Ajusta el tamaño aquí (h-16 = 4rem = 64px)
+            />
+          </div>
           <CardDescription>IMV Health Digestive - Sistema de Encuestas</CardDescription>
         </CardHeader>
         <CardContent>
