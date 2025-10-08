@@ -22,13 +22,19 @@ const AdminDashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  const handleLogout = async () => {
+const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       
-      // Forzamos una recarga completa a la página de login.
-      // Esto limpia todo el estado de la aplicación y evita la redirección no deseada.
+      // Si hay un error, lo mostramos, pero si no, simplemente redirigimos.
+      if (error) {
+        // Ignoramos el AuthSessionMissingError porque es esperado en una doble recarga.
+        if (error.name !== 'AuthSessionMissingError') {
+          throw error;
+        }
+      }
+      
+      // Forzar recarga a la página de login para limpiar el estado.
       window.location.href = '/admin-login';
 
     } catch (error) {

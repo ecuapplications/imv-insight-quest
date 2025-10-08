@@ -75,6 +75,8 @@ const KanbanTab = () => {
     filterEncuestas();
   }, [encuestas, selectedTag, selectedYear, selectedMonth, selectedDay]);
 
+
+
 const fetchEncuestas = async () => {
     setLoading(true);
     try {
@@ -82,6 +84,7 @@ const fetchEncuestas = async () => {
       
       if (!session.session) {
         toast.error("Debe iniciar sesión para ver los comentarios");
+        setLoading(false);
         return;
       }
 
@@ -93,25 +96,19 @@ const fetchEncuestas = async () => {
 
       if (error) throw error;
 
-      // Cargar tareas y responsables para cada encuesta
       const encuestasConTareas = await Promise.all(
         (encuestasData || []).map(async (encuesta) => {
-          // --- CAMBIO AQUÍ ---
-          // Se elimina .single() para que la consulta devuelva un array, 
-          // incluso si está vacío (cuando no hay tareas).
+          // --- CORRECCIÓN AQUÍ ---
           const { data: tareasData, error: tareasError } = await supabase
             .from("tareas")
-            .select(`
-              *,
-              responsables (nombre)
-            `)
+            .select(`*, responsables (nombre)`)
             .eq("encuesta_id", encuesta.id)
             .order("created_at", { ascending: true })
             .limit(1);
           
           if (tareasError) {
-            console.error(`Error fetching task for encuesta ${encuesta.id}:`, tareasError);
-            return { ...encuesta, tarea: null }; // Continúa aunque falle la tarea
+            console.error(`Error al buscar tarea para la encuesta ${encuesta.id}:`, tareasError);
+            return { ...encuesta, tarea: null };
           }
 
           const tarea = tareasData && tareasData.length > 0 ? tareasData[0] : null;
@@ -121,15 +118,11 @@ const fetchEncuestas = async () => {
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
             fechaVencimiento.setHours(0, 0, 0, 0);
-
             let estadoActual = tarea.estado;
 
             if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
               estadoActual = "Vencida";
-              await supabase
-                .from("tareas")
-                .update({ estado: "Vencida" })
-                .eq("id", tarea.id);
+              await supabase.from("tareas").update({ estado: "Vencida" }).eq("id", tarea.id);
             }
 
             return {
@@ -141,11 +134,7 @@ const fetchEncuestas = async () => {
               },
             };
           }
-
-          return {
-            ...encuesta,
-            tarea: null,
-          };
+          return { ...encuesta, tarea: null };
         })
       );
 
@@ -157,6 +146,11 @@ const fetchEncuestas = async () => {
       setLoading(false);
     }
   };
+
+
+
+
+
 
   const filterEncuestas = () => {
     // ... (esta función no cambia)
