@@ -24,9 +24,13 @@ const AdminDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-      toast.success("Sesión cerrada");
-      navigate("/admin-login");
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Forzamos una recarga completa a la página de login.
+      // Esto limpia todo el estado de la aplicación y evita la redirección no deseada.
+      window.location.href = '/admin-login';
+
     } catch (error) {
       console.error("Logout error:", error);
       toast.error("Error al cerrar sesión");
@@ -87,7 +91,7 @@ const AdminDashboard = () => {
 
       {/* --- FOOTER AÑADIDO AQUÍ --- */}
       <footer className="text-center py-4 text-xs text-gray-500">
-        Desarrollado para IMVhealth Quito Ecuador / para soporte técnico{" "}
+        Desarrollado para IMVhealth / para soporte técnico{" "}
         <a 
           href="http://wa.me/13164695701" 
           target="_blank" 
