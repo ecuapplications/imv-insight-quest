@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CommentModal from "./CommentModal";
-import { Filter, MoveRight } from "lucide-react";
+import { Filter, MoveRight, ListChecks } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +32,11 @@ type Encuesta = {
   pregunta4_limpieza: string;
   pregunta5_calificacion_general: string;
   notas_internas: string | null;
+  tarea?: {
+    responsable_nombre: string;
+    fecha_vencimiento: string;
+    estado: string;
+  } | null;
 };
 
 const ESTADOS = [
@@ -79,14 +85,65 @@ const KanbanTab = () => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: encuestasData, error } = await supabase
         .from("encuestas")
         .select("*")
         .not("comentario", "is", null)
         .order("fecha_creacion", { ascending: false });
 
       if (error) throw error;
-      setEncuestas(data || []);
+
+      // Cargar tareas y responsables para cada encuesta
+      const encuestasConTareas = await Promise.all(
+        (encuestasData || []).map(async (encuesta) => {
+          const { data: tareasData } = await supabase
+            .from("tareas")
+            .select(`
+              *,
+              responsables (nombre)
+            `)
+            .eq("encuesta_id", encuesta.id)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .single();
+
+          // Verificar si la tarea está vencida
+          if (tareasData) {
+            const fechaVencimiento = new Date(tareasData.fecha_vencimiento);
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            fechaVencimiento.setHours(0, 0, 0, 0);
+
+            let estadoActual = tareasData.estado;
+
+            // Auto-actualizar a Vencida si corresponde
+            if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
+              estadoActual = "Vencida";
+              // Actualizar en base de datos
+              await supabase
+                .from("tareas")
+                .update({ estado: "Vencida" })
+                .eq("id", tareasData.id);
+            }
+
+            return {
+              ...encuesta,
+              tarea: tareasData ? {
+                responsable_nombre: tareasData.responsables?.nombre || "Sin responsable",
+                fecha_vencimiento: tareasData.fecha_vencimiento,
+                estado: estadoActual,
+              } : null,
+            };
+          }
+
+          return {
+            ...encuesta,
+            tarea: null,
+          };
+        })
+      );
+
+      setEncuestas(encuestasConTareas);
     } catch (error) {
       console.error("Error fetching encuestas:", error);
       toast.error("Error al cargar los comentarios");
@@ -386,6 +443,7 @@ const KanbanTab = () => {
                       </TooltipProvider>
 
                       <p className="text-sm line-clamp-3 pr-8">{encuesta.comentario}</p>
+                      
                       <div className="flex flex-wrap gap-1">
                         {encuesta.etiquetas?.map((tag) => (
                           <Badge
@@ -397,6 +455,34 @@ const KanbanTab = () => {
                           </Badge>
                         ))}
                       </div>
+
+                      {/* Resumen de Tarea */}
+                      {encuesta.tarea && (
+                        <div className="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-200 mt-2">
+                          <ListChecks className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                          <span className="font-medium truncate">{encuesta.tarea.responsable_nombre}</span>
+                          <span className="text-[hsl(var(--imv-gray))]">•</span>
+                          <span className="text-[hsl(var(--imv-gray))]">
+                            {new Date(encuesta.tarea.fecha_vencimiento).toLocaleDateString("es-ES", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric"
+                            })}
+                          </span>
+                          <Badge
+                            className={cn(
+                              "ml-auto flex-shrink-0",
+                              encuesta.tarea.estado === "Pendiente" && "bg-yellow-200 text-yellow-900 hover:bg-yellow-200",
+                              encuesta.tarea.estado === "Resuelta" && "bg-green-200 text-green-900 hover:bg-green-200",
+                              encuesta.tarea.estado === "Vencida" && "bg-red-200 text-red-900 hover:bg-red-200",
+                              encuesta.tarea.estado === "Descartada" && "bg-gray-200 text-gray-900 hover:bg-gray-200"
+                            )}
+                          >
+                            {encuesta.tarea.estado}
+                          </Badge>
+                        </div>
+                      )}
+
                       <p className="text-xs text-[hsl(var(--imv-gray))]">
                         {new Date(encuesta.fecha_creacion).toLocaleDateString("es-ES")}
                       </p>
