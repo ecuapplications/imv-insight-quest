@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
+import { Lock, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const AdminLogin = () => {
@@ -13,6 +13,7 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // false = oculta por defecto
 
   useEffect(() => {
     // Check if already logged in
@@ -79,17 +80,38 @@ const AdminLogin = () => {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+                              <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña</Label>
+                    {/* 1. Contenedor con posición relativa */}
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        // 2. El tipo cambia según el estado 'showPassword'
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="pr-10" // 3. Espacio a la derecha para el ícono
+                      />
+                      {/* 4. Botón posicionado a la derecha */}
+                      <Button
+                        type="button" // Importante para que no envíe el formulario
+                        variant="ghost"
+                        size="icon"
+                        className="absolute inset-y-0 right-0 h-full px-3"
+                        // 5. Al hacer clic, cambiamos el estado
+                        onClick={() => setShowPassword((prev) => !prev)}
+                      >
+                        {/* 6. Muestra un ícono u otro según el estado */}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" /> // Ojo tachado si se muestra
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" /> // Ojo normal si está oculta
+                        )}
+                      </Button>
+                    </div>
+                  </div>
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black font-semibold hover:opacity-90 transition-opacity"
