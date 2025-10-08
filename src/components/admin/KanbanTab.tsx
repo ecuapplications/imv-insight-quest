@@ -284,90 +284,120 @@ const KanbanTab = () => {
             <span className="font-medium text-lg">Filtros</span>
           </div>
           
-          <div className="flex flex-col lg:flex-row gap-3">
-            {/* Tag Filter */}
-            <Select value={selectedTag} onValueChange={setSelectedTag}>
-              <SelectTrigger className="w-full lg:w-[240px]">
-                <SelectValue placeholder="Etiqueta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las etiquetas</SelectItem>
-                <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
-                {ETIQUETAS_DISPONIBLES.map((tag) => (
-                  <SelectItem key={tag} value={tag}>
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <TooltipProvider>
+            <div className="flex flex-col lg:flex-row gap-3">
+              {/* Tag Filter */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select value={selectedTag} onValueChange={setSelectedTag}>
+                    <SelectTrigger className="w-full lg:w-[240px]">
+                      <SelectValue placeholder="Etiqueta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las etiquetas</SelectItem>
+                      <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
+                      {ETIQUETAS_DISPONIBLES.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Filtra los comentarios por etiqueta.</p>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Year Filter */}
-            <Select value={selectedYear} onValueChange={(value) => {
-              setSelectedYear(value);
-              setSelectedMonth("all");
-              setSelectedDay("all");
-            }}>
-              <SelectTrigger className="w-full lg:w-[140px]">
-                <SelectValue placeholder="Año" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los años</SelectItem>
-                {getAvailableYears().map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Year Filter */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select value={selectedYear} onValueChange={(value) => {
+                    setSelectedYear(value);
+                    setSelectedMonth("all");
+                    setSelectedDay("all");
+                  }}>
+                    <SelectTrigger className="w-full lg:w-[140px]">
+                      <SelectValue placeholder="Año" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los años</SelectItem>
+                      {getAvailableYears().map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Filtra por año de creación.</p>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Month Filter */}
-            <Select 
-              value={selectedMonth} 
-              onValueChange={(value) => {
-                setSelectedMonth(value);
-                setSelectedDay("all");
-              }}
-              disabled={selectedYear === "all"}
-            >
-              <SelectTrigger className="w-full lg:w-[140px]">
-                <SelectValue placeholder="Mes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los meses</SelectItem>
-                <SelectItem value="0">Enero</SelectItem>
-                <SelectItem value="1">Febrero</SelectItem>
-                <SelectItem value="2">Marzo</SelectItem>
-                <SelectItem value="3">Abril</SelectItem>
-                <SelectItem value="4">Mayo</SelectItem>
-                <SelectItem value="5">Junio</SelectItem>
-                <SelectItem value="6">Julio</SelectItem>
-                <SelectItem value="7">Agosto</SelectItem>
-                <SelectItem value="8">Septiembre</SelectItem>
-                <SelectItem value="9">Octubre</SelectItem>
-                <SelectItem value="10">Noviembre</SelectItem>
-                <SelectItem value="11">Diciembre</SelectItem>
-              </SelectContent>
-            </Select>
+              {/* Month Filter */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select 
+                    value={selectedMonth} 
+                    onValueChange={(value) => {
+                      setSelectedMonth(value);
+                      setSelectedDay("all");
+                    }}
+                    disabled={selectedYear === "all"}
+                  >
+                    <SelectTrigger className="w-full lg:w-[140px]">
+                      <SelectValue placeholder="Mes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los meses</SelectItem>
+                      <SelectItem value="0">Enero</SelectItem>
+                      <SelectItem value="1">Febrero</SelectItem>
+                      <SelectItem value="2">Marzo</SelectItem>
+                      <SelectItem value="3">Abril</SelectItem>
+                      <SelectItem value="4">Mayo</SelectItem>
+                      <SelectItem value="5">Junio</SelectItem>
+                      <SelectItem value="6">Julio</SelectItem>
+                      <SelectItem value="7">Agosto</SelectItem>
+                      <SelectItem value="8">Septiembre</SelectItem>
+                      <SelectItem value="9">Octubre</SelectItem>
+                      <SelectItem value="10">Noviembre</SelectItem>
+                      <SelectItem value="11">Diciembre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Filtra por mes (debes seleccionar un año).</p>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Day Filter */}
-            <Select 
-              value={selectedDay} 
-              onValueChange={setSelectedDay}
-              disabled={selectedMonth === "all"}
-            >
-              <SelectTrigger className="w-full lg:w-[120px]">
-                <SelectValue placeholder="Día" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los días</SelectItem>
-                {getDaysInMonth().map((day) => (
-                  <SelectItem key={day} value={day.toString()}>
-                    {day}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              {/* Day Filter */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Select 
+                    value={selectedDay} 
+                    onValueChange={setSelectedDay}
+                    disabled={selectedMonth === "all"}
+                  >
+                    <SelectTrigger className="w-full lg:w-[120px]">
+                      <SelectValue placeholder="Día" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los días</SelectItem>
+                      {getDaysInMonth().map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Filtra por día (debes seleccionar un mes).</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </CardContent>
       </Card>
 
