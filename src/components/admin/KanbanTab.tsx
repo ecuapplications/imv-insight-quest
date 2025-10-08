@@ -75,10 +75,9 @@ const KanbanTab = () => {
     filterEncuestas();
   }, [encuestas, selectedTag, selectedYear, selectedMonth, selectedDay]);
 
-  const fetchEncuestas = async () => {
+const fetchEncuestas = async () => {
     setLoading(true);
     try {
-      // ... (el resto de esta función no cambia)
       const { data: session } = await supabase.auth.getSession();
       
       if (!session.session) {
@@ -94,44 +93,62 @@ const KanbanTab = () => {
 
       if (error) throw error;
 
+      // Cargar tareas y responsables para cada encuesta
       const encuestasConTareas = await Promise.all(
         (encuestasData || []).map(async (encuesta) => {
-          const { data: tareasData } = await supabase
+          // --- CAMBIO AQUÍ ---
+          // Se elimina .single() para que la consulta devuelva un array, 
+          // incluso si está vacío (cuando no hay tareas).
+          const { data: tareasData, error: tareasError } = await supabase
             .from("tareas")
-            .select(`*, responsables (nombre)`)
+            .select(`
+              *,
+              responsables (nombre)
+            `)
             .eq("encuesta_id", encuesta.id)
             .order("created_at", { ascending: true })
-            .limit(1)
-            .single();
+            .limit(1);
+          
+          if (tareasError) {
+            console.error(`Error fetching task for encuesta ${encuesta.id}:`, tareasError);
+            return { ...encuesta, tarea: null }; // Continúa aunque falle la tarea
+          }
 
-          if (tareasData) {
-            const fechaVencimiento = new Date(tareasData.fecha_vencimiento);
+          const tarea = tareasData && tareasData.length > 0 ? tareasData[0] : null;
+
+          if (tarea) {
+            const fechaVencimiento = new Date(tarea.fecha_vencimiento);
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
             fechaVencimiento.setHours(0, 0, 0, 0);
 
-            let estadoActual = tareasData.estado;
+            let estadoActual = tarea.estado;
 
             if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
               estadoActual = "Vencida";
               await supabase
                 .from("tareas")
                 .update({ estado: "Vencida" })
-                .eq("id", tareasData.id);
+                .eq("id", tarea.id);
             }
 
             return {
               ...encuesta,
               tarea: {
-                responsable_nombre: tareasData.responsables?.nombre || "Sin responsable",
-                fecha_vencimiento: tareasData.fecha_vencimiento,
+                responsable_nombre: tarea.responsables?.nombre || "Sin responsable",
+                fecha_vencimiento: tarea.fecha_vencimiento,
                 estado: estadoActual,
               },
             };
           }
-          return { ...encuesta, tarea: null };
+
+          return {
+            ...encuesta,
+            tarea: null,
+          };
         })
       );
+
       setEncuestas(encuestasConTareas);
     } catch (error) {
       console.error("Error fetching encuestas:", error);
