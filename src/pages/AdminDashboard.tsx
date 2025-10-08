@@ -10,7 +10,7 @@ import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("stats");
+  const [activeTab, setActiveTab] = useState("kanban"); // Cambiado a 'kanban' por defecto
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -34,16 +34,34 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--kanban-bg))]">
+    // 1. El componente <Tabs> ahora envuelve toda la página
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-screen bg-[hsl(var(--kanban-bg))]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] bg-clip-text text-transparent">
-              IMV Health Digestive
-            </h1>
-            <p className="text-sm text-[hsl(var(--imv-gray))]">Panel de Administración de Encuestas</p>
-          </div>
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          {/* Logo y Título */}
+<div>
+  <img 
+    src="/logo.png" 
+    alt="Logotipo de IMV Health Digestive" 
+    className="h-16 w-auto" // Ajustado a h-16 como pediste
+  />
+  <p className="text-sm text-[hsl(var(--imv-gray))] mt-1">Panel de Administración de Encuestas</p>
+</div>
+
+          {/* 2. La lista de pestañas (TabsList) se ha movido aquí */}
+          <TabsList className="bg-white">
+            <TabsTrigger value="stats" className="data-[state=active]:bg-gray-100 data-[state=active]:text-gray-800">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Estadísticas
+            </TabsTrigger>
+            <TabsTrigger value="kanban" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black">
+              <Kanban className="mr-2 h-4 w-4" />
+              Gestión de Comentarios
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Botón de Cerrar Sesión */}
           <Button
             onClick={handleLogout}
             variant="outline"
@@ -57,28 +75,16 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white">
-            <TabsTrigger value="stats" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Estadísticas
-            </TabsTrigger>
-            <TabsTrigger value="kanban" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black">
-              <Kanban className="mr-2 h-4 w-4" />
-              Gestión de Comentarios
-            </TabsTrigger>
-          </TabsList>
+        {/* 3. El contenido de las pestañas (<TabsContent>) permanece aquí */}
+        <TabsContent value="stats" className="space-y-6">
+          <StatsTab />
+        </TabsContent>
 
-          <TabsContent value="stats" className="space-y-6">
-            <StatsTab />
-          </TabsContent>
-
-          <TabsContent value="kanban" className="space-y-6">
-            <KanbanTab />
-          </TabsContent>
-        </Tabs>
+        <TabsContent value="kanban" className="space-y-6">
+          <KanbanTab />
+        </TabsContent>
       </div>
-    </div>
+    </Tabs>
   );
 };
 

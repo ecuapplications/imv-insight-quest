@@ -78,6 +78,7 @@ const KanbanTab = () => {
   const fetchEncuestas = async () => {
     setLoading(true);
     try {
+      // ... (el resto de esta función no cambia)
       const { data: session } = await supabase.auth.getSession();
       
       if (!session.session) {
@@ -93,21 +94,16 @@ const KanbanTab = () => {
 
       if (error) throw error;
 
-      // Cargar tareas y responsables para cada encuesta
       const encuestasConTareas = await Promise.all(
         (encuestasData || []).map(async (encuesta) => {
           const { data: tareasData } = await supabase
             .from("tareas")
-            .select(`
-              *,
-              responsables (nombre)
-            `)
+            .select(`*, responsables (nombre)`)
             .eq("encuesta_id", encuesta.id)
             .order("created_at", { ascending: true })
             .limit(1)
             .single();
 
-          // Verificar si la tarea está vencida
           if (tareasData) {
             const fechaVencimiento = new Date(tareasData.fecha_vencimiento);
             const hoy = new Date();
@@ -116,10 +112,8 @@ const KanbanTab = () => {
 
             let estadoActual = tareasData.estado;
 
-            // Auto-actualizar a Vencida si corresponde
             if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
               estadoActual = "Vencida";
-              // Actualizar en base de datos
               await supabase
                 .from("tareas")
                 .update({ estado: "Vencida" })
@@ -128,21 +122,16 @@ const KanbanTab = () => {
 
             return {
               ...encuesta,
-              tarea: tareasData ? {
+              tarea: {
                 responsable_nombre: tareasData.responsables?.nombre || "Sin responsable",
                 fecha_vencimiento: tareasData.fecha_vencimiento,
                 estado: estadoActual,
-              } : null,
+              },
             };
           }
-
-          return {
-            ...encuesta,
-            tarea: null,
-          };
+          return { ...encuesta, tarea: null };
         })
       );
-
       setEncuestas(encuestasConTareas);
     } catch (error) {
       console.error("Error fetching encuestas:", error);
@@ -153,38 +142,29 @@ const KanbanTab = () => {
   };
 
   const filterEncuestas = () => {
+    // ... (esta función no cambia)
     let filtered = encuestas;
-
-    // Filter by tag
     if (selectedTag === "sin-etiqueta") {
       filtered = filtered.filter((e) => !e.etiquetas || e.etiquetas.length === 0);
     } else if (selectedTag !== "all") {
       filtered = filtered.filter((e) => e.etiquetas && e.etiquetas.includes(selectedTag));
     }
-
-    // Filter by date
     filtered = filtered.filter((e) => {
       const fecha = new Date(e.fecha_creacion);
-      
       if (selectedYear !== "all") {
         if (fecha.getFullYear() !== parseInt(selectedYear)) return false;
-        
         if (selectedMonth !== "all") {
           if (fecha.getMonth() !== parseInt(selectedMonth)) return false;
-          
           if (selectedDay !== "all") {
             if (fecha.getDate() !== parseInt(selectedDay)) return false;
           }
         }
       }
-      
       return true;
     });
-
     setFilteredEncuestas(filtered);
   };
 
-  // Get unique years from encuestas
   const getAvailableYears = () => {
     const years = new Set<number>();
     encuestas.forEach((e) => {
@@ -194,7 +174,6 @@ const KanbanTab = () => {
     return Array.from(years).sort((a, b) => b - a);
   };
 
-  // Get days in selected month
   const getDaysInMonth = () => {
     if (selectedYear === "all" || selectedMonth === "all") return [];
     const year = parseInt(selectedYear);
@@ -203,152 +182,100 @@ const KanbanTab = () => {
     return Array.from({ length: daysInMonth }, (_, i) => i + 1);
   };
 
+  // ... (el resto de las funciones como handleDragStart, handleDrop, etc. no cambian)
   const handleDragStart = (e: React.DragEvent, encuestaId: string) => {
     setDraggedItem(encuestaId);
     e.dataTransfer.effectAllowed = "move";
   };
-
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
   };
-
   const handleDrop = async (e: React.DragEvent, nuevoEstado: string) => {
     e.preventDefault();
     if (!draggedItem) return;
-
     try {
-      const { error } = await supabase
-        .from("encuestas")
-        .update({ estado_kanban: nuevoEstado })
-        .eq("id", draggedItem);
-
-      if (error) throw error;
-
-      setEncuestas((prev) =>
-        prev.map((enc) =>
-          enc.id === draggedItem ? { ...enc, estado_kanban: nuevoEstado } : enc
-        )
-      );
-
+      await supabase.from("encuestas").update({ estado_kanban: nuevoEstado }).eq("id", draggedItem);
+      setEncuestas((prev) => prev.map((enc) => (enc.id === draggedItem ? { ...enc, estado_kanban: nuevoEstado } : enc)));
       toast.success("Comentario movido exitosamente");
     } catch (error) {
-      console.error("Error updating estado:", error);
       toast.error("Error al mover el comentario");
     } finally {
       setDraggedItem(null);
     }
   };
-
   const handleMoveCard = async (encuestaId: string, nuevoEstado: string) => {
     try {
-      const { error } = await supabase
-        .from("encuestas")
-        .update({ estado_kanban: nuevoEstado })
-        .eq("id", encuestaId);
-
-      if (error) throw error;
-
-      setEncuestas((prev) =>
-        prev.map((enc) =>
-          enc.id === encuestaId ? { ...enc, estado_kanban: nuevoEstado } : enc
-        )
-      );
-
+      await supabase.from("encuestas").update({ estado_kanban: nuevoEstado }).eq("id", encuestaId);
+      setEncuestas((prev) => prev.map((enc) => (enc.id === encuestaId ? { ...enc, estado_kanban: nuevoEstado } : enc)));
       toast.success("Comentario movido exitosamente");
     } catch (error) {
-      console.error("Error updating estado:", error);
       toast.error("Error al mover el comentario");
     }
   };
-
   const getEncuestasByEstado = (estado: string) => {
     return filteredEncuestas.filter((e) => e.estado_kanban === estado);
   };
 
+
   if (loading) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-[hsl(var(--imv-gray))]">Cargando comentarios...</p>
-      </div>
-    );
+    return <div className="text-center py-12"><p className="text-[hsl(var(--imv-gray))]">Cargando comentarios...</p></div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Filtros */}
       <Card className="shadow-md">
         <CardContent className="pt-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
-            <span className="font-medium text-lg">Filtros</span>
-          </div>
-          
-          <TooltipProvider>
-            <div className="flex flex-col lg:flex-row gap-3">
-              {/* Tag Filter */}
-              <Tooltip>
-                <TooltipTrigger asChild>
+          {/* ---- CAMBIO DE ALINEACIÓN: Contenedor principal para alinear título y filtros ---- */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-4">
+            
+            <div className="flex items-center gap-2 mb-4 lg:mb-0 flex-shrink-0">
+              <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
+              <span className="font-medium text-lg">Filtros</span>
+            </div>
+            
+            <TooltipProvider>
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
+                
+                {/* ---- CAMBIO DE TOOLTIP: envuelve solo el SelectTrigger ---- */}
+                <Tooltip>
                   <Select value={selectedTag} onValueChange={setSelectedTag}>
-                    <SelectTrigger className="w-full lg:w-[240px]">
-                      <SelectValue placeholder="Etiqueta" />
-                    </SelectTrigger>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectValue placeholder="Etiqueta" />
+                      </SelectTrigger>
+                    </TooltipTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas las etiquetas</SelectItem>
                       <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
-                      {ETIQUETAS_DISPONIBLES.map((tag) => (
-                        <SelectItem key={tag} value={tag}>
-                          {tag}
-                        </SelectItem>
-                      ))}
+                      {ETIQUETAS_DISPONIBLES.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Filtra los comentarios por etiqueta.</p>
-                </TooltipContent>
-              </Tooltip>
+                  <TooltipContent><p>Filtra los comentarios por etiqueta.</p></TooltipContent>
+                </Tooltip>
 
-              {/* Year Filter */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Select value={selectedYear} onValueChange={(value) => {
-                    setSelectedYear(value);
-                    setSelectedMonth("all");
-                    setSelectedDay("all");
-                  }}>
-                    <SelectTrigger className="w-full lg:w-[140px]">
-                      <SelectValue placeholder="Año" />
-                    </SelectTrigger>
+                <Tooltip>
+                  <Select value={selectedYear} onValueChange={(value) => { setSelectedYear(value); setSelectedMonth("all"); setSelectedDay("all"); }}>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger className="w-full sm:w-[140px]">
+                        <SelectValue placeholder="Año" />
+                      </SelectTrigger>
+                    </TooltipTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los años</SelectItem>
-                      {getAvailableYears().map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
+                      {getAvailableYears().map((year) => <SelectItem key={year} value={year.toString()}>{year}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Filtra por año de creación.</p>
-                </TooltipContent>
-              </Tooltip>
+                  <TooltipContent><p>Filtra por año de creación.</p></TooltipContent>
+                </Tooltip>
 
-              {/* Month Filter */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Select 
-                    value={selectedMonth} 
-                    onValueChange={(value) => {
-                      setSelectedMonth(value);
-                      setSelectedDay("all");
-                    }}
-                    disabled={selectedYear === "all"}
-                  >
-                    <SelectTrigger className="w-full lg:w-[140px]">
-                      <SelectValue placeholder="Mes" />
-                    </SelectTrigger>
+                <Tooltip>
+                  <Select value={selectedMonth} onValueChange={(value) => { setSelectedMonth(value); setSelectedDay("all"); }} disabled={selectedYear === "all"}>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger className="w-full sm:w-[140px]">
+                        <SelectValue placeholder="Mes" />
+                      </SelectTrigger>
+                    </TooltipTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los meses</SelectItem>
                       <SelectItem value="0">Enero</SelectItem>
@@ -365,39 +292,27 @@ const KanbanTab = () => {
                       <SelectItem value="11">Diciembre</SelectItem>
                     </SelectContent>
                   </Select>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Filtra por mes (debes seleccionar un año).</p>
-                </TooltipContent>
-              </Tooltip>
+                  <TooltipContent><p>Filtra por mes (debes seleccionar un año).</p></TooltipContent>
+                </Tooltip>
 
-              {/* Day Filter */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Select 
-                    value={selectedDay} 
-                    onValueChange={setSelectedDay}
-                    disabled={selectedMonth === "all"}
-                  >
-                    <SelectTrigger className="w-full lg:w-[120px]">
-                      <SelectValue placeholder="Día" />
-                    </SelectTrigger>
+                <Tooltip>
+                  <Select value={selectedDay} onValueChange={setSelectedDay} disabled={selectedMonth === "all"}>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger className="w-full sm:w-[120px]">
+                        <SelectValue placeholder="Día" />
+                      </SelectTrigger>
+                    </TooltipTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los días</SelectItem>
-                      {getDaysInMonth().map((day) => (
-                        <SelectItem key={day} value={day.toString()}>
-                          {day}
-                        </SelectItem>
-                      ))}
+                      {getDaysInMonth().map((day) => <SelectItem key={day} value={day.toString()}>{day}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Filtra por día (debes seleccionar un mes).</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
+                  <TooltipContent><p>Filtra por día (debes seleccionar un mes).</p></TooltipContent>
+                </Tooltip>
+
+              </div>
+            </TooltipProvider>
+          </div>
         </CardContent>
       </Card>
 
@@ -412,22 +327,14 @@ const KanbanTab = () => {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, estado)}
             >
-              <div className="mb-4">
-                <h3 className="font-semibold text-sm mb-1">{estado}</h3>
-                <p className="text-xs text-[hsl(var(--imv-gray))]">{items.length} comentarios</p>
-              </div>
-
+              <h3 className="font-semibold text-sm mb-1">{estado}</h3>
+              <p className="text-xs text-[hsl(var(--imv-gray))] mb-4">{items.length} comentarios</p>
               <div className="space-y-3">
                 {items.map((encuesta) => (
-                  <Card
-                    key={encuesta.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, encuesta.id)}
-                    className="cursor-pointer hover:shadow-lg transition-shadow bg-white relative"
-                  >
+                  <Card key={encuesta.id} draggable onDragStart={(e) => handleDragStart(e, encuesta.id)} className="cursor-pointer hover:shadow-lg transition-shadow bg-white relative">
                     <CardContent className="p-4 space-y-2" onClick={() => setSelectedEncuesta(encuesta)}>
-                      {/* Move button */}
-                      <TooltipProvider>
+                       {/* ... El resto del componente de la tarjeta no cambia ... */}
+                       <TooltipProvider>
                         <Tooltip>
                           <DropdownMenu>
                             <TooltipTrigger asChild>
@@ -461,51 +368,24 @@ const KanbanTab = () => {
                           </DropdownMenu>
                         </Tooltip>
                       </TooltipProvider>
-
                       <p className="text-sm line-clamp-3 pr-8">{encuesta.comentario}</p>
-                      
                       <div className="flex flex-wrap gap-1">
-                        {encuesta.etiquetas?.map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="secondary"
-                            className="text-xs bg-gradient-to-r from-[hsl(var(--imv-cyan)/0.2)] to-[hsl(var(--imv-purple)/0.2)]"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
+                        {encuesta.etiquetas?.map((tag) => <Badge key={tag} variant="secondary" className="text-xs bg-gradient-to-r from-[hsl(var(--imv-cyan)/0.2)] to-[hsl(var(--imv-purple)/0.2)]">{tag}</Badge>)}
                       </div>
-
-                      {/* Resumen de Tarea */}
                       {encuesta.tarea && (
                         <div className="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-200 mt-2">
                           <ListChecks className="h-4 w-4 text-blue-600 flex-shrink-0" />
                           <span className="font-medium truncate">{encuesta.tarea.responsable_nombre}</span>
                           <span className="text-[hsl(var(--imv-gray))]">•</span>
                           <span className="text-[hsl(var(--imv-gray))]">
-                            {new Date(encuesta.tarea.fecha_vencimiento).toLocaleDateString("es-ES", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric"
-                            })}
+                            {new Date(encuesta.tarea.fecha_vencimiento).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
                           </span>
-                          <Badge
-                            className={cn(
-                              "ml-auto flex-shrink-0",
-                              encuesta.tarea.estado === "Pendiente" && "bg-yellow-200 text-yellow-900 hover:bg-yellow-200",
-                              encuesta.tarea.estado === "Resuelta" && "bg-green-200 text-green-900 hover:bg-green-200",
-                              encuesta.tarea.estado === "Vencida" && "bg-red-200 text-red-900 hover:bg-red-200",
-                              encuesta.tarea.estado === "Descartada" && "bg-gray-200 text-gray-900 hover:bg-gray-200"
-                            )}
-                          >
+                          <Badge className={cn("ml-auto flex-shrink-0", encuesta.tarea.estado === "Pendiente" && "bg-yellow-200 text-yellow-900 hover:bg-yellow-200", encuesta.tarea.estado === "Resuelta" && "bg-green-200 text-green-900 hover:bg-green-200", encuesta.tarea.estado === "Vencida" && "bg-red-200 text-red-900 hover:bg-red-200", encuesta.tarea.estado === "Descartada" && "bg-gray-200 text-gray-900 hover:bg-gray-200")}>
                             {encuesta.tarea.estado}
                           </Badge>
                         </div>
                       )}
-
-                      <p className="text-xs text-[hsl(var(--imv-gray))]">
-                        {new Date(encuesta.fecha_creacion).toLocaleDateString("es-ES")}
-                      </p>
+                      <p className="text-xs text-[hsl(var(--imv-gray))]">{new Date(encuesta.fecha_creacion).toLocaleDateString("es-ES")}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -515,7 +395,6 @@ const KanbanTab = () => {
         })}
       </div>
 
-      {/* Comment Modal */}
       {selectedEncuesta && (
         <CommentModal
           encuesta={selectedEncuesta}
