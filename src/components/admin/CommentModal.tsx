@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X, Plus, CalendarIcon, Edit, Trash2 } from "lucide-react";
+import { X, Plus, CalendarIcon, Edit, Trash2, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale"; // Importar el idioma español
 import { cn } from "@/lib/utils";
@@ -28,12 +28,16 @@ type Encuesta = {
   notas_internas: string | null;
 };
 
+type Etiqueta = {
+  id: string;
+  nombre: string;
+};
+
 type CommentModalProps = {
   encuesta: Encuesta;
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
-  etiquetasDisponibles: string[];
 };
 
 type Tarea = {
@@ -51,9 +55,9 @@ type Responsable = {
   email: string;
 };
 
-const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles }: CommentModalProps) => {
+const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) => {
   const [selectedTags, setSelectedTags] = useState<string[]>(encuesta.etiquetas || []);
-  const [newTag, setNewTag] = useState("");
+  const [etiquetasDisponibles, setEtiquetasDisponibles] = useState<Etiqueta[]>([]);
   const [notasInternas, setNotasInternas] = useState(encuesta.notas_internas || "");
   
   // Task management state
@@ -73,13 +77,28 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
   const [showNewResponsable, setShowNewResponsable] = useState(false);
   const [newResponsable, setNewResponsable] = useState({ nombre: "", email: "" });
 
-  // Load tasks and responsables
+  // Load tasks, responsables and etiquetas
   useEffect(() => {
     if (open) {
       loadTareas();
       loadResponsables();
+      loadEtiquetas();
     }
   }, [open, encuesta.id]);
+
+  const loadEtiquetas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("etiquetas")
+        .select("*")
+        .order("nombre");
+
+      if (error) throw error;
+      setEtiquetasDisponibles(data || []);
+    } catch (error) {
+      console.error("Error loading tags:", error);
+    }
+  };
 
   const loadTareas = async () => {
     const { data, error } = await supabase
@@ -249,14 +268,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
     );
   };
 
-  const handleAddCustomTag = () => {
-    const trimmedTag = newTag.trim();
-    if (trimmedTag && !selectedTags.includes(trimmedTag)) {
-      setSelectedTags((prev) => [...prev, trimmedTag]);
-      setNewTag("");
-    }
-  };
-
   const handleRemoveTag = (tag: string) => {
     setSelectedTags((prev) => prev.filter((t) => t !== tag));
   };
@@ -326,72 +337,27 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
           {/* Tags */}
           <div>
             <h4 className="font-semibold mb-3 flex items-center gap-2">
-              <Plus className="h-4 w-4" />
+              <Tag className="h-4 w-4" />
               Etiquetas:
             </h4>
             
-            {/* Predefined Tags */}
-            <div className="flex flex-wrap gap-2 mb-3">
+            {/* Available Tags */}
+            <div className="flex flex-wrap gap-2">
               {etiquetasDisponibles.map((tag) => (
                 <Badge
-                  key={tag}
-                  variant={selectedTags.includes(tag) ? "default" : "outline"}
+                  key={tag.id}
+                  variant={selectedTags.includes(tag.nombre) ? "default" : "outline"}
                   className={`cursor-pointer transition-all ${
-                    selectedTags.includes(tag)
+                    selectedTags.includes(tag.nombre)
                       ? "bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black border-0"
                       : "hover:bg-gray-100"
                   }`}
-                  onClick={() => toggleTag(tag)}
+                  onClick={() => toggleTag(tag.nombre)}
                 >
-                  {tag}
-                  {selectedTags.includes(tag) && <X className="ml-1 h-3 w-3" />}
+                  {tag.nombre}
+                  {selectedTags.includes(tag.nombre) && <X className="ml-1 h-3 w-3" />}
                 </Badge>
               ))}
-            </div>
-
-            {/* Selected Custom Tags */}
-            {selectedTags.filter(tag => !etiquetasDisponibles.includes(tag)).length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs text-[hsl(var(--imv-gray))] mb-2">Etiquetas personalizadas:</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedTags
-                    .filter(tag => !etiquetasDisponibles.includes(tag))
-                    .map((tag) => (
-                      <Badge
-                        key={tag}
-                        className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black border-0"
-                      >
-                        {tag}
-                        <X 
-                          className="ml-1 h-3 w-3 cursor-pointer" 
-                          onClick={() => handleRemoveTag(tag)}
-                        />
-                      </Badge>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add Custom Tag */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Crear etiqueta personalizada..."
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === "Enter") {
-                    handleAddCustomTag();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button 
-                onClick={handleAddCustomTag}
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
             </div>
           </div>
 

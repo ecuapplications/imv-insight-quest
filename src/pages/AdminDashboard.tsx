@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, BarChart3, Kanban } from "lucide-react";
+import { LogOut, BarChart3, Kanban, Tag } from "lucide-react";
 import StatsTab from "@/components/admin/StatsTab";
 import KanbanTab from "@/components/admin/KanbanTab";
+import TagsManagementTab from "@/components/admin/TagsManagementTab";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -72,6 +73,13 @@ const handleLogout = async () => {
                 <Kanban className="mr-2 h-4 w-4" />
                 Gestión de Comentarios
               </TabsTrigger>
+              <TabsTrigger 
+                value="tags" 
+                className="px-4 py-2 text-muted-foreground rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black data-[state=active]:shadow-md data-[state=active]:font-semibold"
+              >
+                <Tag className="mr-2 h-4 w-4" />
+                Gestión de Etiquetas
+              </TabsTrigger>
             </TabsList>
             <Button
               onClick={handleLogout}
@@ -91,6 +99,9 @@ const handleLogout = async () => {
           </TabsContent>
           <TabsContent value="kanban" className="space-y-6">
             <KanbanTab />
+          </TabsContent>
+          <TabsContent value="tags" className="space-y-6">
+            <TagsManagementTab />
           </TabsContent>
         </div>
       </div>

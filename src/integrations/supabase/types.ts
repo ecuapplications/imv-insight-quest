@@ -56,6 +56,24 @@ export type Database = {
         }
         Relationships: []
       }
+      etiquetas: {
+        Row: {
+          created_at: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       responsables: {
         Row: {
           created_at: string

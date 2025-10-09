@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CommentModal from "./CommentModal";
-import { Filter, MoveRight, ListChecks } from "lucide-react";
+import { Filter, MoveRight, ListChecks, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -47,19 +48,17 @@ const ESTADOS = [
   "Archivado / Resuelto ✅",
 ];
 
-const ETIQUETAS_DISPONIBLES = [
-  "Atención y Trato",
-  "Tiempos de Espera",
-  "Claridad de la Información",
-  "Procesos y Trámites",
-  "Instalaciones",
-  "Resolución de Problemas",
-];
+type Etiqueta = {
+  id: string;
+  nombre: string;
+};
 
 const KanbanTab = () => {
   const [encuestas, setEncuestas] = useState<Encuesta[]>([]);
   const [filteredEncuestas, setFilteredEncuestas] = useState<Encuesta[]>([]);
+  const [etiquetasDisponibles, setEtiquetasDisponibles] = useState<Etiqueta[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [tagSearchQuery, setTagSearchQuery] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedDay, setSelectedDay] = useState<string>("all");
@@ -69,11 +68,26 @@ const KanbanTab = () => {
 
   useEffect(() => {
     fetchEncuestas();
+    fetchEtiquetas();
   }, []);
 
   useEffect(() => {
     filterEncuestas();
   }, [encuestas, selectedTag, selectedYear, selectedMonth, selectedDay]);
+
+  const fetchEtiquetas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("etiquetas")
+        .select("*")
+        .order("nombre");
+
+      if (error) throw error;
+      setEtiquetasDisponibles(data || []);
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+    }
+  };
 
 
 
@@ -233,96 +247,125 @@ const fetchEncuestas = async () => {
     return <div className="text-center py-12"><p className="text-[hsl(var(--imv-gray))]">Cargando comentarios...</p></div>;
   }
 
+  const filteredTags = etiquetasDisponibles.filter((tag) =>
+    tag.nombre.toLowerCase().includes(tagSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       <Card className="shadow-md">
         <CardContent className="pt-6">
-          {/* ---- CAMBIO DE ALINEACIÓN: Contenedor principal para alinear título y filtros ---- */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:gap-4">
             
             <div className="flex items-center gap-2 mb-4 lg:mb-0 flex-shrink-0">
               <Filter className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
               <span className="font-medium text-lg">Filtros</span>
             </div>
             
-            <TooltipProvider>
-              <div className="flex flex-col sm:flex-row gap-3 w-full">
+            <div className="flex flex-col gap-4 w-full">
+              {/* Tag Filter with Search */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--imv-gray))]" />
+                  <Input
+                    placeholder="Buscar etiqueta..."
+                    value={tagSearchQuery}
+                    onChange={(e) => setTagSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
                 
-                {/* ---- CAMBIO DE TOOLTIP: envuelve solo el SelectTrigger ---- */}
-                <Tooltip>
-                  <Select value={selectedTag} onValueChange={setSelectedTag}>
-                    <TooltipTrigger asChild>
-                      <SelectTrigger className="w-full sm:w-[200px]">
-                        <SelectValue placeholder="Etiqueta" />
-                      </SelectTrigger>
-                    </TooltipTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las etiquetas</SelectItem>
-                      <SelectItem value="sin-etiqueta">Sin Etiqueta</SelectItem>
-                      {ETIQUETAS_DISPONIBLES.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <TooltipContent><p>Filtra los comentarios por etiqueta.</p></TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <Select value={selectedYear} onValueChange={(value) => { setSelectedYear(value); setSelectedMonth("all"); setSelectedDay("all"); }}>
-                    <TooltipTrigger asChild>
-                      <SelectTrigger className="w-full sm:w-[140px]">
-                        <SelectValue placeholder="Año" />
-                      </SelectTrigger>
-                    </TooltipTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los años</SelectItem>
-                      {getAvailableYears().map((year) => <SelectItem key={year} value={year.toString()}>{year}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <TooltipContent><p>Filtra por año de creación.</p></TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <Select value={selectedMonth} onValueChange={(value) => { setSelectedMonth(value); setSelectedDay("all"); }} disabled={selectedYear === "all"}>
-                    <TooltipTrigger asChild>
-                      <SelectTrigger className="w-full sm:w-[140px]">
-                        <SelectValue placeholder="Mes" />
-                      </SelectTrigger>
-                    </TooltipTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los meses</SelectItem>
-                      <SelectItem value="0">Enero</SelectItem>
-                      <SelectItem value="1">Febrero</SelectItem>
-                      <SelectItem value="2">Marzo</SelectItem>
-                      <SelectItem value="3">Abril</SelectItem>
-                      <SelectItem value="4">Mayo</SelectItem>
-                      <SelectItem value="5">Junio</SelectItem>
-                      <SelectItem value="6">Julio</SelectItem>
-                      <SelectItem value="7">Agosto</SelectItem>
-                      <SelectItem value="8">Septiembre</SelectItem>
-                      <SelectItem value="9">Octubre</SelectItem>
-                      <SelectItem value="10">Noviembre</SelectItem>
-                      <SelectItem value="11">Diciembre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <TooltipContent><p>Filtra por mes (debes seleccionar un año).</p></TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <Select value={selectedDay} onValueChange={setSelectedDay} disabled={selectedMonth === "all"}>
-                    <TooltipTrigger asChild>
-                      <SelectTrigger className="w-full sm:w-[120px]">
-                        <SelectValue placeholder="Día" />
-                      </SelectTrigger>
-                    </TooltipTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los días</SelectItem>
-                      {getDaysInMonth().map((day) => <SelectItem key={day} value={day.toString()}>{day}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <TooltipContent><p>Filtra por día (debes seleccionar un mes).</p></TooltipContent>
-                </Tooltip>
-
+                <div className="relative">
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    <Badge
+                      variant={selectedTag === "all" ? "default" : "outline"}
+                      className={cn(
+                        "cursor-pointer whitespace-nowrap flex-shrink-0 transition-all",
+                        selectedTag === "all"
+                          ? "bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black"
+                          : "hover:bg-gray-100"
+                      )}
+                      onClick={() => setSelectedTag("all")}
+                    >
+                      Todas
+                    </Badge>
+                    <Badge
+                      variant={selectedTag === "sin-etiqueta" ? "default" : "outline"}
+                      className={cn(
+                        "cursor-pointer whitespace-nowrap flex-shrink-0 transition-all",
+                        selectedTag === "sin-etiqueta"
+                          ? "bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black"
+                          : "hover:bg-gray-100"
+                      )}
+                      onClick={() => setSelectedTag("sin-etiqueta")}
+                    >
+                      Sin Etiqueta
+                    </Badge>
+                    {filteredTags.map((tag) => (
+                      <Badge
+                        key={tag.id}
+                        variant={selectedTag === tag.nombre ? "default" : "outline"}
+                        className={cn(
+                          "cursor-pointer whitespace-nowrap flex-shrink-0 transition-all",
+                          selectedTag === tag.nombre
+                            ? "bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black"
+                            : "hover:bg-gray-100"
+                        )}
+                        onClick={() => setSelectedTag(tag.nombre)}
+                      >
+                        {tag.nombre}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </TooltipProvider>
+
+              {/* Date Filters */}
+              <TooltipProvider>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Tooltip>
+                    <Select value={selectedMonth} onValueChange={(value) => { setSelectedMonth(value); setSelectedDay("all"); }} disabled={selectedYear === "all"}>
+                      <TooltipTrigger asChild>
+                        <SelectTrigger className="w-full sm:w-[140px]">
+                          <SelectValue placeholder="Mes" />
+                        </SelectTrigger>
+                      </TooltipTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los meses</SelectItem>
+                        <SelectItem value="0">Enero</SelectItem>
+                        <SelectItem value="1">Febrero</SelectItem>
+                        <SelectItem value="2">Marzo</SelectItem>
+                        <SelectItem value="3">Abril</SelectItem>
+                        <SelectItem value="4">Mayo</SelectItem>
+                        <SelectItem value="5">Junio</SelectItem>
+                        <SelectItem value="6">Julio</SelectItem>
+                        <SelectItem value="7">Agosto</SelectItem>
+                        <SelectItem value="8">Septiembre</SelectItem>
+                        <SelectItem value="9">Octubre</SelectItem>
+                        <SelectItem value="10">Noviembre</SelectItem>
+                        <SelectItem value="11">Diciembre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <TooltipContent><p>Filtra por mes (debes seleccionar un año).</p></TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <Select value={selectedDay} onValueChange={setSelectedDay} disabled={selectedMonth === "all"}>
+                      <TooltipTrigger asChild>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                          <SelectValue placeholder="Día" />
+                        </SelectTrigger>
+                      </TooltipTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los días</SelectItem>
+                        {getDaysInMonth().map((day) => <SelectItem key={day} value={day.toString()}>{day}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <TooltipContent><p>Filtra por día (debes seleccionar un mes).</p></TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -412,7 +455,6 @@ const fetchEncuestas = async () => {
           open={!!selectedEncuesta}
           onClose={() => setSelectedEncuesta(null)}
           onUpdate={fetchEncuestas}
-          etiquetasDisponibles={ETIQUETAS_DISPONIBLES}
         />
       )}
     </div>
