@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { X, Plus, CalendarIcon, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale"; // Importar el idioma español
 import { cn } from "@/lib/utils";
 
 type Encuesta = {
@@ -205,6 +206,9 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
       fecha_vencimiento: new Date(),
       estado: "Pendiente",
     });
+    
+    // **AQUÍ LA ACTUALIZACIÓN**
+    onUpdate(); // Notifica al componente padre (KanbanTab) para que recargue los datos
     loadTareas();
   };
 
@@ -233,6 +237,9 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
     }
 
     toast.success("Tarea eliminada");
+    
+    // **AQUÍ LA ACTUALIZACIÓN**
+    onUpdate(); // Notifica al componente padre (KanbanTab) para que recargue los datos
     loadTareas();
   };
 
@@ -503,7 +510,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {taskForm.fecha_vencimiento ? (
-                          format(taskForm.fecha_vencimiento, "PPP")
+                          format(taskForm.fecha_vencimiento, "PPP", { locale: es })
                         ) : (
                           <span>Seleccionar fecha</span>
                         )}
@@ -515,6 +522,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate, etiquetasDisponibles 
                         selected={taskForm.fecha_vencimiento}
                         onSelect={(date) => date && setTaskForm({ ...taskForm, fecha_vencimiento: date })}
                         initialFocus
+                        locale={es}
                         className="pointer-events-auto"
                       />
                     </PopoverContent>
