@@ -11,9 +11,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { X, Plus, CalendarIcon, Edit, Trash2, Tag } from "lucide-react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale"; // Importar el idioma español
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+// ... (Tipos como Encuesta, Tarea, Responsable no cambian)
 type Encuesta = {
   id: string;
   comentario: string;
@@ -55,12 +56,14 @@ type Responsable = {
   email: string;
 };
 
+
 const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) => {
   const [selectedTags, setSelectedTags] = useState<string[]>(encuesta.etiquetas || []);
   const [etiquetasDisponibles, setEtiquetasDisponibles] = useState<Etiqueta[]>([]);
+  const [newTag, setNewTag] = useState(""); // <-- NUEVO: Estado para la nueva etiqueta
   const [notasInternas, setNotasInternas] = useState(encuesta.notas_internas || "");
   
-  // Task management state
+  // ... (El resto de los estados no cambian)
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [responsables, setResponsables] = useState<Responsable[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -72,12 +75,11 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     fecha_vencimiento: new Date(),
     estado: "Pendiente",
   });
-  
-  // New responsable form
   const [showNewResponsable, setShowNewResponsable] = useState(false);
   const [newResponsable, setNewResponsable] = useState({ nombre: "", email: "" });
 
-  // Load tasks, responsables and etiquetas
+
+  // ... (useEffect y loadTareas, loadResponsables no cambian)
   useEffect(() => {
     if (open) {
       loadTareas();
@@ -99,7 +101,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       console.error("Error loading tags:", error);
     }
   };
-
+  
   const loadTareas = async () => {
     const { data, error } = await supabase
       .from("tareas")
@@ -131,7 +133,59 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     setResponsables(data);
   };
 
-  const handleAddResponsable = async () => {
+  // <-- INICIO: NUEVA FUNCIÓN PARA AÑADIR ETIQUETAS -->
+  const handleAddNewTag = async () => {
+    const trimmedTag = newTag.trim();
+    if (!trimmedTag) {
+      toast.error("El nombre de la etiqueta no puede estar vacío.");
+      return;
+    }
+
+    // Evitar duplicados (insensible a mayúsculas/minúsculas)
+    const exists = etiquetasDisponibles.some(
+      (tag) => tag.nombre.toLowerCase() === trimmedTag.toLowerCase()
+    );
+    if (exists) {
+      toast.warning(`La etiqueta "${trimmedTag}" ya existe.`);
+      // Opcional: seleccionar la etiqueta existente si ya existe
+      if (!selectedTags.includes(trimmedTag)) {
+        toggleTag(trimmedTag);
+      }
+      setNewTag("");
+      return;
+    }
+
+    try {
+      // Insertar en la base de datos
+      const { data, error } = await supabase
+        .from("etiquetas")
+        .insert([{ nombre: trimmedTag }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success("Etiqueta creada exitosamente");
+      setNewTag(""); // Limpiar input
+      
+      // Actualizar la lista de etiquetas disponibles localmente
+      await loadEtiquetas();
+      
+      // Seleccionar automáticamente la nueva etiqueta
+      setSelectedTags((prev) => [...prev, data.nombre]);
+
+      // Notificar al componente padre para que actualice su lista de filtros
+      onUpdate();
+
+    } catch (error) {
+      console.error("Error creating tag:", error);
+      toast.error("No se pudo crear la etiqueta.");
+    }
+  };
+  // <-- FIN: NUEVA FUNCIÓN -->
+  
+  // ... (El resto de funciones como handleSaveTask, handleSave, etc., no cambian)
+    const handleAddResponsable = async () => {
     if (!newResponsable.nombre.trim() || !newResponsable.email.trim()) {
       toast.error("Nombre y email son requeridos");
       return;
@@ -162,20 +216,17 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       return;
     }
 
-    // Determinar el estado correcto
     let estadoFinal = taskForm.estado;
     const fechaVencimiento = new Date(taskForm.fecha_vencimiento);
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     fechaVencimiento.setHours(0, 0, 0, 0);
 
-    // Si es una tarea vencida que se está replanificando con fecha futura, volver a Pendiente
     if (taskForm.estado === "Vencida" && fechaVencimiento > hoy) {
       estadoFinal = "Pendiente";
     }
 
     if (editingTaskId) {
-      // Update existing task
       const { error } = await supabase
         .from("tareas")
         .update({
@@ -192,10 +243,8 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
         console.error(error);
         return;
       }
-
       toast.success("Tarea actualizada");
     } else {
-      // Create new task
       const { error } = await supabase
         .from("tareas")
         .insert([{
@@ -212,7 +261,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
         console.error(error);
         return;
       }
-
       toast.success("Tarea creada");
     }
 
@@ -226,8 +274,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       estado: "Pendiente",
     });
     
-    // **AQUÍ LA ACTUALIZACIÓN**
-    onUpdate(); // Notifica al componente padre (KanbanTab) para que recargue los datos
+    onUpdate();
     loadTareas();
   };
 
@@ -256,9 +303,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     }
 
     toast.success("Tarea eliminada");
-    
-    // **AQUÍ LA ACTUALIZACIÓN**
-    onUpdate(); // Notifica al componente padre (KanbanTab) para que recargue los datos
+    onUpdate();
     loadTareas();
   };
 
@@ -266,10 +311,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setSelectedTags((prev) => prev.filter((t) => t !== tag));
   };
 
   const handleSave = async () => {
@@ -293,6 +334,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     }
   };
 
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -301,13 +343,11 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Comment */}
+          {/* ... (Secciones de Comentario y Respuestas no cambian) */}
           <div>
             <h4 className="font-semibold mb-2">Comentario:</h4>
             <p className="text-[hsl(var(--imv-gray))] bg-gray-50 p-4 rounded-lg">{encuesta.comentario}</p>
           </div>
-
-          {/* Survey Answers */}
           <div>
             <h4 className="font-semibold mb-3">Resumen de Respuestas:</h4>
             <div className="space-y-2 text-sm">
@@ -334,15 +374,15 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
             </div>
           </div>
 
-          {/* Tags */}
+
+          {/* <-- INICIO: SECCIÓN DE ETIQUETAS MODIFICADA --> */}
           <div>
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Tag className="h-4 w-4" />
               Etiquetas:
             </h4>
             
-            {/* Available Tags */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mb-4">
               {etiquetasDisponibles.map((tag) => (
                 <Badge
                   key={tag.id}
@@ -359,9 +399,29 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
                 </Badge>
               ))}
             </div>
-          </div>
 
-          {/* Internal Notes */}
+            {/* Formulario para añadir nueva etiqueta */}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Crear y asignar nueva etiqueta..."
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault(); // Evitar que el form se envíe si lo hubiera
+                    handleAddNewTag();
+                  }
+                }}
+              />
+              <Button onClick={handleAddNewTag} size="sm" variant="outline">
+                <Plus className="h-4 w-4 mr-1" />
+                Añadir
+              </Button>
+            </div>
+          </div>
+          {/* <-- FIN: SECCIÓN DE ETIQUETAS MODIFICADA --> */}
+
+          {/* ... (El resto del componente no cambia) */}
           <div>
             <h4 className="font-semibold mb-2">Notas Internas:</h4>
             <Textarea
@@ -371,8 +431,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
               className="min-h-[100px]"
             />
           </div>
-
-          {/* Tasks Section */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold">Tareas:</h4>
@@ -396,7 +454,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
               </Button>
             </div>
 
-            {/* Task Form */}
             {showTaskForm && (
               <div className="border rounded-lg p-4 mb-4 space-y-3 bg-gray-50">
                 <Input
@@ -529,7 +586,6 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
               </div>
             )}
 
-            {/* Task List */}
             <div className="space-y-2">
               {tareas.map((tarea: any) => {
                 const responsable = responsables.find(r => r.id === tarea.responsable_id);
@@ -593,14 +649,10 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
               )}
             </div>
           </div>
-
-          {/* Metadata */}
           <div className="text-xs text-[hsl(var(--imv-gray))] border-t pt-4">
             <p>Fecha: {new Date(encuesta.fecha_creacion).toLocaleString("es-ES")}</p>
             <p>Estado: {encuesta.estado_kanban}</p>
           </div>
-
-          {/* Actions */}
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={onClose}>
               Cancelar
