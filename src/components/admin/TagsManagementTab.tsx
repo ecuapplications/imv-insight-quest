@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Trash2, Tag } from "lucide-react";
 
@@ -36,12 +36,8 @@ const TagsManagementTab = () => {
   const fetchEtiquetas = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("etiquetas")
-        .select("*")
-        .order("nombre");
-
-      if (error) throw error;
+      const { data, error } = await api.get<Etiqueta[]>("/etiquetas.php");
+      if (error) throw new Error(error);
       setEtiquetas(data || []);
     } catch (error) {
       console.error("Error fetching tags:", error);
@@ -53,7 +49,7 @@ const TagsManagementTab = () => {
 
   const handleCreateTag = async () => {
     const trimmedName = newTagName.trim();
-    
+
     if (!trimmedName) {
       toast.error("El nombre de la etiqueta no puede estar vacío");
       return;
@@ -65,11 +61,8 @@ const TagsManagementTab = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from("etiquetas")
-        .insert([{ nombre: trimmedName }]);
-
-      if (error) throw error;
+      const { error } = await api.post("/etiquetas.php", { nombre: trimmedName });
+      if (error) throw new Error(error);
 
       toast.success("Etiqueta creada exitosamente");
       setNewTagName("");
@@ -84,37 +77,20 @@ const TagsManagementTab = () => {
     if (!tagToDelete) return;
 
     try {
-      // Primero, eliminar la etiqueta de todos los comentarios que la usen
-      const { data: encuestas, error: fetchError } = await supabase
-        .from("encuestas")
-        .select("id, etiquetas")
-        .contains("etiquetas", [tagToDelete.nombre]);
+      const { data: encuestasConTag, error: fetchError } = await api.get<{ id: string; etiquetas: string[] }[]>(
+        "/encuestas.php?with_comment=1"
+      );
+      if (fetchError) throw new Error(fetchError);
 
-      if (fetchError) throw fetchError;
-
-      // Actualizar cada encuesta para remover la etiqueta
-      if (encuestas && encuestas.length > 0) {
-        for (const encuesta of encuestas) {
-          const updatedTags = (encuesta.etiquetas || []).filter(
-            (tag: string) => tag !== tagToDelete.nombre
-          );
-          
-          const { error: updateError } = await supabase
-            .from("encuestas")
-            .update({ etiquetas: updatedTags })
-            .eq("id", encuesta.id);
-
-          if (updateError) throw updateError;
-        }
+      const afectadas = (encuestasConTag || []).filter((e) => (e.etiquetas || []).includes(tagToDelete.nombre));
+      for (const encuesta of afectadas) {
+        const updatedTags = (encuesta.etiquetas || []).filter((tag) => tag !== tagToDelete.nombre);
+        const { error: updateError } = await api.patch(`/encuestas.php?id=${encuesta.id}`, { etiquetas: updatedTags });
+        if (updateError) throw new Error(updateError);
       }
 
-      // Eliminar la etiqueta de la tabla
-      const { error: deleteError } = await supabase
-        .from("etiquetas")
-        .delete()
-        .eq("id", tagToDelete.id);
-
-      if (deleteError) throw deleteError;
+      const { error: deleteError } = await api.del(`/etiquetas.php?id=${tagToDelete.id}`);
+      if (deleteError) throw new Error(deleteError);
 
       toast.success(`Etiqueta "${tagToDelete.nombre}" eliminada exitosamente`);
       setTagToDelete(null);
