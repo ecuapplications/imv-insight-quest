@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -77,49 +77,30 @@ const KanbanTab = () => {
 
   const fetchEtiquetas = async () => {
     try {
-      const { data, error } = await supabase
-        .from("etiquetas")
-        .select("*")
-        .order("nombre");
-
-      if (error) throw error;
+      const { data, error } = await api.get<Etiqueta[]>("/etiquetas.php");
+      if (error) throw new Error(error);
       setEtiquetasDisponibles(data || []);
     } catch (error) {
       console.error("Error fetching tags:", error);
     }
   };
 
-
-
-const fetchEncuestas = async () => {
+  const fetchEncuestas = async () => {
     setLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session) {
+      const { data: encuestasData, error } = await api.get<any[]>("/encuestas.php?with_comment=1");
+      if (error) {
         toast.error("Debe iniciar sesión para ver los comentarios");
         setLoading(false);
         return;
       }
 
-      const { data: encuestasData, error } = await supabase
-        .from("encuestas")
-        .select("*")
-        .not("comentario", "is", null)
-        .order("fecha_creacion", { ascending: false });
-
-      if (error) throw error;
-
       const encuestasConTareas = await Promise.all(
         (encuestasData || []).map(async (encuesta) => {
-          // --- CORRECCIÓN AQUÍ ---
-          const { data: tareasData, error: tareasError } = await supabase
-            .from("tareas")
-            .select(`*, responsables (nombre)`)
-            .eq("encuesta_id", encuesta.id)
-            .order("created_at", { ascending: true })
-            .limit(1);
-          
+          const { data: tareasData, error: tareasError } = await api.get<any[]>(
+            `/tareas.php?encuesta_id=${encuesta.id}`
+          );
+
           if (tareasError) {
             console.error(`Error al buscar tarea para la encuesta ${encuesta.id}:`, tareasError);
             return { ...encuesta, tarea: null };
@@ -128,23 +109,12 @@ const fetchEncuestas = async () => {
           const tarea = tareasData && tareasData.length > 0 ? tareasData[0] : null;
 
           if (tarea) {
-            const fechaVencimiento = new Date(tarea.fecha_vencimiento);
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
-            fechaVencimiento.setHours(0, 0, 0, 0);
-            let estadoActual = tarea.estado;
-
-            if (estadoActual === "Pendiente" && fechaVencimiento < hoy) {
-              estadoActual = "Vencida";
-              await supabase.from("tareas").update({ estado: "Vencida" }).eq("id", tarea.id);
-            }
-
             return {
               ...encuesta,
               tarea: {
-                responsable_nombre: tarea.responsables?.nombre || "Sin responsable",
+                responsable_nombre: tarea.responsable_nombre || "Sin responsable",
                 fecha_vencimiento: tarea.fecha_vencimiento,
-                estado: estadoActual,
+                estado: tarea.estado,
               },
             };
           }
@@ -220,7 +190,8 @@ const fetchEncuestas = async () => {
     e.preventDefault();
     if (!draggedItem) return;
     try {
-      await supabase.from("encuestas").update({ estado_kanban: nuevoEstado }).eq("id", draggedItem);
+      const { error } = await api.patch(`/encuestas.php?id=${draggedItem}`, { estado_kanban: nuevoEstado });
+      if (error) throw new Error(error);
       setEncuestas((prev) => prev.map((enc) => (enc.id === draggedItem ? { ...enc, estado_kanban: nuevoEstado } : enc)));
       toast.success("Comentario movido exitosamente");
     } catch (error) {
@@ -231,7 +202,8 @@ const fetchEncuestas = async () => {
   };
   const handleMoveCard = async (encuestaId: string, nuevoEstado: string) => {
     try {
-      await supabase.from("encuestas").update({ estado_kanban: nuevoEstado }).eq("id", encuestaId);
+      const { error } = await api.patch(`/encuestas.php?id=${encuestaId}`, { estado_kanban: nuevoEstado });
+      if (error) throw new Error(error);
       setEncuestas((prev) => prev.map((enc) => (enc.id === encuestaId ? { ...enc, estado_kanban: nuevoEstado } : enc)));
       toast.success("Comentario movido exitosamente");
     } catch (error) {
