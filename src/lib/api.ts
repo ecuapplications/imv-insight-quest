@@ -39,7 +39,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiR
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  get: <T>(path: string) => {
+    const bustedPath = path + (path.includes("?") ? "&" : "?") + "_=" + Date.now();
+    return request<T>(bustedPath, { method: "GET" });
+  },
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
