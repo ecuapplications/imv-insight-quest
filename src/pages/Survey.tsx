@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown } from "lucide-react"; // 1. Importamos los iconos
 import { toast } from "sonner";
 
@@ -95,16 +95,15 @@ const Survey = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("encuestas").insert([{
+      const { error } = await api.post("/encuestas.php", {
         pregunta1_amabilidad: answers.pregunta1_amabilidad,
         pregunta2_tiempo_espera: answers.pregunta2_tiempo_espera,
         pregunta3_resolucion_dudas: answers.pregunta3_resolucion_dudas,
         pregunta4_limpieza: answers.pregunta4_limpieza,
         pregunta5_calificacion_general: answers.pregunta5_calificacion_general,
         comentario: answers.comentario || null,
-        estado_kanban: answers.comentario ? "Bandeja de Entrada" : null,
-      }]);
-      if (error) throw error;
+      });
+      if (error) throw new Error(error);
       setCurrentStep(totalSteps);
     } catch (error) {
       console.error("Error submitting survey:", error);

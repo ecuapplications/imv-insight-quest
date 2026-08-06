@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { Calendar, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -52,12 +52,6 @@ const StatsTab = () => {
   const fetchResponses = async () => {
     setLoading(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) {
-        toast.error("Debe iniciar sesión para ver las estadísticas");
-        return;
-      }
-      let query = supabase.from("encuestas").select("pregunta1_amabilidad, pregunta2_tiempo_espera, pregunta3_resolucion_dudas, pregunta4_limpieza, pregunta5_calificacion_general, fecha_creacion");
       const now = new Date();
       let startDate = new Date();
       switch (filter) {
@@ -66,9 +60,13 @@ const StatsTab = () => {
         case "month": startDate.setMonth(now.getMonth() - 1); break;
         case "year": startDate.setFullYear(now.getFullYear() - 1); break;
       }
-      query = query.gte("fecha_creacion", startDate.toISOString());
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data, error } = await api.get<EncuestaData[]>(
+        `/encuestas.php?since=${encodeURIComponent(startDate.toISOString())}`
+      );
+      if (error) {
+        toast.error("Debe iniciar sesión para ver las estadísticas");
+        return;
+      }
       setResponses(data || []);
     } catch (error) {
       console.error("Error fetching responses:", error);
