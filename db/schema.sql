@@ -1,7 +1,7 @@
 -- Esquema combinado, portado desde supabase/migrations/*.sql
 -- (RLS de Supabase se elimina: el control de acceso ahora vive en la capa PHP)
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Nota: gen_random_uuid() es parte del core de Postgres desde la v13, no requiere pgcrypto
+-- (SiteGround no permite CREATE EXTENSION en hosting compartido de todos modos).
 
 CREATE TABLE public.encuestas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
