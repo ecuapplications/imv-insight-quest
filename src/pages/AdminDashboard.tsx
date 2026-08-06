@@ -6,42 +6,21 @@ import { LogOut, BarChart3, Kanban, Tag } from "lucide-react";
 import StatsTab from "@/components/admin/StatsTab";
 import KanbanTab from "@/components/admin/KanbanTab";
 import TagsManagementTab from "@/components/admin/TagsManagementTab";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { logout, isAuthenticated } from "@/lib/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("kanban");
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/admin-login");
-      }
-    };
-    checkAuth();
+    if (!isAuthenticated()) {
+      navigate("/admin-login");
+    }
   }, [navigate]);
 
-const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      
-      // Si hay un error, lo mostramos, pero si no, simplemente redirigimos.
-      if (error) {
-        // Ignoramos el AuthSessionMissingError porque es esperado en una doble recarga.
-        if (error.name !== 'AuthSessionMissingError') {
-          throw error;
-        }
-      }
-      
-      // Forzar recarga a la página de login para limpiar el estado.
-      window.location.href = '/admin-login';
-
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Error al cerrar sesión");
-    }
+  const handleLogout = () => {
+    logout();
+    window.location.href = '/admin-login';
   };
 
   return (

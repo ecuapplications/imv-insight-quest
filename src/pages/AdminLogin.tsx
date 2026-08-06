@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Lock, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { login, isAuthenticated } from "@/lib/api";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -16,14 +16,9 @@ const AdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false); // false = oculta por defecto
 
   useEffect(() => {
-    // Check if already logged in
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/admin");
-      }
-    };
-    checkSession();
+    if (isAuthenticated()) {
+      navigate("/admin");
+    }
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -31,17 +26,11 @@ const AdminLogin = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await login(email, password);
+      if (error || !data) throw new Error(error ?? "Error desconocido");
 
-      if (error) throw error;
-
-      if (data.session) {
-        toast.success("Bienvenido al panel de administración");
-        navigate("/admin");
-      }
+      toast.success("Bienvenido al panel de administración");
+      navigate("/admin");
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error("Credenciales incorrectas");
