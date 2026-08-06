@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# No reescribir requests a /api/*.php — deben servirse tal cual
+RewriteCond %{REQUEST_URI} ^/api/
+RewriteRule ^ - [L]
+
+# Servir archivos y carpetas que existen tal cual (assets del build)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Todo lo demás cae a index.html (SPA routing de React Router)
+RewriteRule ^ index.html [L]
