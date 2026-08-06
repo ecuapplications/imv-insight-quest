@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { X, Plus, CalendarIcon, Edit, Trash2, Tag } from "lucide-react";
 import { format } from "date-fns";
@@ -90,47 +90,37 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
 
   const loadEtiquetas = async () => {
     try {
-      const { data, error } = await supabase
-        .from("etiquetas")
-        .select("*")
-        .order("nombre");
-
-      if (error) throw error;
+      const { data, error } = await api.get<Etiqueta[]>("/etiquetas.php");
+      if (error) throw new Error(error);
       setEtiquetasDisponibles(data || []);
     } catch (error) {
       console.error("Error loading tags:", error);
     }
   };
-  
+
   const loadTareas = async () => {
-    const { data, error } = await supabase
-      .from("tareas")
-      .select("*")
-      .eq("encuesta_id", encuesta.id);
+    const { data, error } = await api.get<any[]>(`/tareas.php?encuesta_id=${encuesta.id}`);
 
     if (error) {
       console.error("Error loading tasks:", error);
       return;
     }
 
-    setTareas(data.map(t => ({
+    setTareas((data || []).map((t) => ({
       ...t,
-      fecha_vencimiento: new Date(t.fecha_vencimiento)
+      fecha_vencimiento: new Date(t.fecha_vencimiento),
     })));
   };
 
   const loadResponsables = async () => {
-    const { data, error } = await supabase
-      .from("responsables")
-      .select("*")
-      .order("nombre");
+    const { data, error } = await api.get<Responsable[]>("/responsables.php");
 
     if (error) {
       console.error("Error loading responsables:", error);
       return;
     }
 
-    setResponsables(data);
+    setResponsables(data || []);
   };
 
   // <-- INICIO: NUEVA FUNCIÓN PARA AÑADIR ETIQUETAS -->
@@ -156,27 +146,15 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
     }
 
     try {
-      // Insertar en la base de datos
-      const { data, error } = await supabase
-        .from("etiquetas")
-        .insert([{ nombre: trimmedTag }])
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data, error } = await api.post<{ id: string; nombre: string }>("/etiquetas.php", { nombre: trimmedTag });
+      if (error || !data) throw new Error(error ?? "Error desconocido");
 
       toast.success("Etiqueta creada exitosamente");
-      setNewTag(""); // Limpiar input
-      
-      // Actualizar la lista de etiquetas disponibles localmente
+      setNewTag("");
+
       await loadEtiquetas();
-      
-      // Seleccionar automáticamente la nueva etiqueta
       setSelectedTags((prev) => [...prev, data.nombre]);
-
-      // Notificar al componente padre para que actualice su lista de filtros
       onUpdate();
-
     } catch (error) {
       console.error("Error creating tag:", error);
       toast.error("No se pudo crear la etiqueta.");
@@ -191,13 +169,9 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       return;
     }
 
-    const { data, error } = await supabase
-      .from("responsables")
-      .insert([newResponsable])
-      .select()
-      .single();
+    const { data, error } = await api.post<Responsable>("/responsables.php", newResponsable);
 
-    if (error) {
+    if (error || !data) {
       toast.error("Error al crear responsable");
       console.error(error);
       return;
@@ -226,17 +200,16 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       estadoFinal = "Pendiente";
     }
 
+    const payload = {
+      nombre: taskForm.nombre,
+      descripcion: taskForm.descripcion,
+      responsable_id: taskForm.responsable_id,
+      fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
+      estado: estadoFinal,
+    };
+
     if (editingTaskId) {
-      const { error } = await supabase
-        .from("tareas")
-        .update({
-          nombre: taskForm.nombre,
-          descripcion: taskForm.descripcion,
-          responsable_id: taskForm.responsable_id,
-          fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
-          estado: estadoFinal,
-        })
-        .eq("id", editingTaskId);
+      const { error } = await api.patch(`/tareas.php?id=${editingTaskId}`, payload);
 
       if (error) {
         toast.error("Error al actualizar tarea");
@@ -245,16 +218,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
       }
       toast.success("Tarea actualizada");
     } else {
-      const { error } = await supabase
-        .from("tareas")
-        .insert([{
-          encuesta_id: encuesta.id,
-          nombre: taskForm.nombre,
-          descripcion: taskForm.descripcion,
-          responsable_id: taskForm.responsable_id,
-          fecha_vencimiento: taskForm.fecha_vencimiento.toISOString().split('T')[0],
-          estado: estadoFinal,
-        }]);
+      const { error } = await api.post("/tareas.php", { encuesta_id: encuesta.id, ...payload });
 
       if (error) {
         toast.error("Error al crear tarea");
@@ -291,10 +255,7 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
   };
 
   const handleDeleteTask = async (tareaId: string) => {
-    const { error } = await supabase
-      .from("tareas")
-      .delete()
-      .eq("id", tareaId);
+    const { error } = await api.del(`/tareas.php?id=${tareaId}`);
 
     if (error) {
       toast.error("Error al eliminar tarea");
@@ -315,15 +276,12 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
 
   const handleSave = async () => {
     try {
-      const { error } = await supabase
-        .from("encuestas")
-        .update({ 
-          etiquetas: selectedTags,
-          notas_internas: notasInternas 
-        })
-        .eq("id", encuesta.id);
+      const { error } = await api.patch(`/encuestas.php?id=${encuesta.id}`, {
+        etiquetas: selectedTags,
+        notas_internas: notasInternas,
+      });
 
-      if (error) throw error;
+      if (error) throw new Error(error);
 
       toast.success("Cambios guardados exitosamente");
       onUpdate();
