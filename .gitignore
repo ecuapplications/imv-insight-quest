@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# PHP backend config (contains DB credentials, never commit)
+api/config.php
