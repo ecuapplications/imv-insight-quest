@@ -1,6 +1,5 @@
 <?php
 require __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/lib/turnstile.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $db = get_db();
@@ -19,11 +18,6 @@ if ($method === 'POST') {
     $segundos = $body['segundos_transcurridos'] ?? null;
     if ($segundos !== null && $segundos < 3) {
         json_ok(['id' => null]);
-    }
-
-    $turnstileToken = $body['turnstile_token'] ?? '';
-    if (!turnstile_verify($turnstileToken, $config['turnstile_secret'])) {
-        json_error('No pudimos verificar que eres una persona real. Intenta de nuevo.', 400);
     }
 
     $required = [

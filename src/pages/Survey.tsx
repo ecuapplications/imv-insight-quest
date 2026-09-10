@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,18 +32,8 @@ const Survey = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [formLoadedAt] = useState(() => Date.now());
-  const [turnstileToken, setTurnstileToken] = useState("");
   const [alreadyToday, setAlreadyToday] = useState(() => !codigo && hasSubmittedToday());
   const [linkAlreadyUsed, setLinkAlreadyUsed] = useState(false);
-
-  useEffect(() => {
-    (window as any).onTurnstileSuccess = (token: string) => setTurnstileToken(token);
-    (window as any).onTurnstileExpired = () => setTurnstileToken("");
-    return () => {
-      delete (window as any).onTurnstileSuccess;
-      delete (window as any).onTurnstileExpired;
-    };
-  }, []);
 
   const totalSteps = 7; // Intro + 5 questions + comment
 
@@ -120,7 +110,6 @@ const Survey = () => {
         comentario: answers.comentario || null,
         sitio_web: honeypot,
         segundos_transcurridos: Math.round((Date.now() - formLoadedAt) / 1000),
-        turnstile_token: turnstileToken,
         device_id: getDeviceId(),
         codigo_enlace: codigo || null,
       });
@@ -211,14 +200,6 @@ const Survey = () => {
           {currentQuestion.type === "textarea" && (
             <div className="space-y-6">
               <Textarea value={answers.comentario} onChange={(e) => handleAnswer(e.target.value)} placeholder="Escriba su comentario aquí..." className="min-h-[200px] text-lg bg-white/5 border-white/20 text-[hsl(var(--survey-text-light))] placeholder:text-[hsl(var(--survey-text))]" />
-              <div className="flex justify-center">
-                <div
-                  className="cf-turnstile"
-                  data-sitekey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
-                  data-callback="onTurnstileSuccess"
-                  data-expired-callback="onTurnstileExpired"
-                />
-              </div>
             </div>
           )}
 
@@ -281,7 +262,7 @@ const Survey = () => {
               Siguiente <ChevronRight className="ml-2 h-5 w-5" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={isSubmitting || !turnstileToken} className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black font-semibold hover:opacity-90 transition-opacity disabled:opacity-30">
+            <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black font-semibold hover:opacity-90 transition-opacity disabled:opacity-30">
               {isSubmitting ? "Enviando..." : "Enviar"} <Send className="ml-2 h-5 w-5" />
             </Button>
           )}
