@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, BarChart3, Kanban, Tag } from "lucide-react";
+import { LogOut, BarChart3, Kanban, Tag, ShieldAlert } from "lucide-react";
 import StatsTab from "@/components/admin/StatsTab";
 import KanbanTab from "@/components/admin/KanbanTab";
 import TagsManagementTab from "@/components/admin/TagsManagementTab";
+import SuspiciousDevicesTab from "@/components/admin/SuspiciousDevicesTab";
 import { logout, isAuthenticated } from "@/lib/api";
 
 const AdminDashboard = () => {
@@ -52,12 +53,19 @@ const AdminDashboard = () => {
                 <Kanban className="mr-2 h-4 w-4" />
                 Gestión de Comentarios
               </TabsTrigger>
-              <TabsTrigger 
-                value="tags" 
+              <TabsTrigger
+                value="tags"
                 className="px-4 py-2 text-muted-foreground rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black data-[state=active]:shadow-md data-[state=active]:font-semibold"
               >
                 <Tag className="mr-2 h-4 w-4" />
                 Gestión de Etiquetas
+              </TabsTrigger>
+              <TabsTrigger
+                value="sospechosos"
+                className="px-4 py-2 text-muted-foreground rounded-lg data-[state=active]:bg-gradient-to-r data-[state=active]:from-[hsl(var(--imv-cyan))] data-[state=active]:to-[hsl(var(--imv-purple))] data-[state=active]:text-black data-[state=active]:shadow-md data-[state=active]:font-semibold"
+              >
+                <ShieldAlert className="mr-2 h-4 w-4" />
+                Sospechosos
               </TabsTrigger>
             </TabsList>
             <Button
@@ -81,6 +89,9 @@ const AdminDashboard = () => {
           </TabsContent>
           <TabsContent value="tags" className="space-y-6">
             <TagsManagementTab />
+          </TabsContent>
+          <TabsContent value="sospechosos" className="space-y-6">
+            <SuspiciousDevicesTab />
           </TabsContent>
         </div>
       </div>
