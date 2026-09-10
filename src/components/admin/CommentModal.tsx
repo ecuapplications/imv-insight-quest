@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { X, Plus, CalendarIcon, Edit, Trash2, Tag } from "lucide-react";
+import { getEstadoLabel, getEstadoIcon } from "@/lib/estadoKanban";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -609,7 +610,14 @@ const CommentModal = ({ encuesta, open, onClose, onUpdate }: CommentModalProps) 
           </div>
           <div className="text-xs text-[hsl(var(--imv-gray))] border-t pt-4">
             <p>Fecha: {new Date(encuesta.fecha_creacion).toLocaleString("es-ES")}</p>
-            <p>Estado: {encuesta.estado_kanban}</p>
+            <p className="flex items-center gap-1.5">
+              Estado:
+              {(() => {
+                const EstadoIcon = getEstadoIcon(encuesta.estado_kanban);
+                return <EstadoIcon className="h-3.5 w-3.5" />;
+              })()}
+              {getEstadoLabel(encuesta.estado_kanban)}
+            </p>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={onClose}>
