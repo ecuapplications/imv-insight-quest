@@ -11,14 +11,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link2, MessageCircle, QrCode, Copy } from "lucide-react";
 
+type Visita = {
+  device_id: string | null;
+  ip_address: string | null;
+  visitado_en: string;
+};
+
 type Enlace = {
   codigo: string;
+  nombre_paciente: string | null;
+  telefono: string | null;
   creado_en: string;
   usado_en: string | null;
+  visitas: Visita[];
 };
 
 const PAISES = [
@@ -51,7 +66,7 @@ const GenerateLinkTab = () => {
   const [enlaces, setEnlaces] = useState<Enlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [nuevoEnlace, setNuevoEnlace] = useState<{ codigo: string; url: string } | null>(null);
+  const [nuevoEnlace, setNuevoEnlace] = useState<{ codigo: string; url: string; nombre: string } | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [nombrePaciente, setNombrePaciente] = useState("");
   const [paisCodigo, setPaisCodigo] = useState("593");
@@ -75,15 +90,28 @@ const GenerateLinkTab = () => {
     }
   };
 
+  const numeroLimpio = telefono.replace(/[^0-9]/g, "");
+  const puedeGenerar = nombrePaciente.trim() !== "" && numeroLimpio !== "";
+
   const handleGenerate = async () => {
+    if (!puedeGenerar) {
+      toast.error("El nombre y el número de WhatsApp del paciente son obligatorios");
+      return;
+    }
     setGenerating(true);
     try {
-      const { data, error } = await api.post<{ codigo: string; url: string }>("/enlaces.php", {});
+      const numeroCompleto = `${paisCodigo}${numeroLimpio}`;
+      const { data, error } = await api.post<{ codigo: string; url: string }>("/enlaces.php", {
+        nombre_paciente: nombrePaciente.trim(),
+        telefono: numeroCompleto,
+      });
       if (error || !data) throw new Error(error ?? "Error desconocido");
       const urlCompleta = `${window.location.origin}${BASE_PATH}${data.url}`;
       const qr = await QRCode.toDataURL(urlCompleta);
-      setNuevoEnlace({ codigo: data.codigo, url: urlCompleta });
+      setNuevoEnlace({ codigo: data.codigo, url: urlCompleta, nombre: nombrePaciente.trim() });
       setQrDataUrl(qr);
+      setNombrePaciente("");
+      setTelefono("");
       fetchEnlaces();
     } catch (error) {
       console.error("Error generating link:", error);
@@ -93,13 +121,10 @@ const GenerateLinkTab = () => {
     }
   };
 
-  const saludo = nombrePaciente.trim() ? `Hola ${nombrePaciente.trim()}` : "Hola";
   const mensajeWhatsapp = nuevoEnlace
-    ? `${saludo}, gracias por tu visita a IMV Health Digestive. Nos ayudaría mucho que respondas esta breve encuesta de satisfacción: ${nuevoEnlace.url}`
+    ? `Hola ${nuevoEnlace.nombre}, gracias por tu visita a IMV Health Digestive. Nos ayudaría mucho que respondas esta breve encuesta de satisfacción: ${nuevoEnlace.url}`
     : "";
-  const numeroLimpio = telefono.replace(/[^0-9]/g, "");
-  const numeroCompleto = numeroLimpio ? `${paisCodigo}${numeroLimpio}` : "";
-  const whatsappHref = `https://wa.me/${numeroCompleto}?text=${encodeURIComponent(mensajeWhatsapp)}`;
+  const whatsappHref = `https://wa.me/${paisCodigo}${numeroLimpio}?text=${encodeURIComponent(mensajeWhatsapp)}`;
 
   const handleCopyMessage = async () => {
     try {
@@ -120,12 +145,38 @@ const GenerateLinkTab = () => {
             Generar Enlace de un Solo Uso
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Genera un enlace único al finalizar cada visita y envíalo por WhatsApp. Una vez respondido,
-            el enlace queda invalidado automáticamente.
+            El nombre y el WhatsApp del paciente son obligatorios — se registran junto con el enlace para
+            poder rastrear a quién se le envió y cuándo lo abre.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={handleGenerate} disabled={generating}>
+          <Input
+            placeholder="Nombre del paciente (obligatorio)"
+            value={nombrePaciente}
+            onChange={(e) => setNombrePaciente(e.target.value)}
+          />
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Select value={paisCodigo} onValueChange={setPaisCodigo}>
+              <SelectTrigger className="sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAISES.map((p) => (
+                  <SelectItem key={`${p.code}-${p.name}`} value={p.code}>
+                    {p.flag} +{p.code} {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Número de WhatsApp del paciente (obligatorio, sin el código de país)"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+            />
+          </div>
+
+          <Button onClick={handleGenerate} disabled={generating || !puedeGenerar}>
             {generating ? "Generando..." : "Generar nuevo enlace"}
           </Button>
 
@@ -134,32 +185,6 @@ const GenerateLinkTab = () => {
               <div className="flex flex-col items-center gap-2">
                 {qrDataUrl && <img src={qrDataUrl} alt="Código QR del enlace" className="w-40 h-40" />}
                 <p className="text-xs font-mono break-all text-center">{nuevoEnlace.url}</p>
-              </div>
-
-              <Input
-                placeholder="Nombre del paciente (opcional)"
-                value={nombrePaciente}
-                onChange={(e) => setNombrePaciente(e.target.value)}
-              />
-
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Select value={paisCodigo} onValueChange={setPaisCodigo}>
-                  <SelectTrigger className="sm:w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAISES.map((p) => (
-                      <SelectItem key={`${p.code}-${p.name}`} value={p.code}>
-                        {p.flag} +{p.code} {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  placeholder="Número del paciente (sin el código de país)"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
@@ -189,6 +214,9 @@ const GenerateLinkTab = () => {
             <QrCode className="h-4 w-4" />
             Últimos enlaces generados
           </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Expande un enlace para ver el registro de aperturas: dispositivo e IP desde donde se abrió.
+          </p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -196,21 +224,43 @@ const GenerateLinkTab = () => {
           ) : enlaces.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aún no se han generado enlaces.</p>
           ) : (
-            <div className="space-y-2">
+            <Accordion type="single" collapsible className="w-full">
               {enlaces.map((e) => (
-                <div key={e.codigo} className="flex items-center justify-between text-sm border-b pb-2">
-                  <span className="font-mono">{e.codigo}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {new Date(e.creado_en).toLocaleString("es-EC")}
-                  </span>
-                  {e.usado_en ? (
-                    <Badge variant="secondary">Usado</Badge>
-                  ) : (
-                    <Badge variant="outline">Sin usar</Badge>
-                  )}
-                </div>
+                <AccordionItem key={e.codigo} value={e.codigo}>
+                  <AccordionTrigger className="text-sm">
+                    <div className="flex flex-wrap items-center gap-2 text-left">
+                      <span className="font-medium">{e.nombre_paciente ?? "(sin nombre)"}</span>
+                      <span className="text-muted-foreground text-xs">{e.telefono ?? "—"}</span>
+                      <span className="text-muted-foreground text-xs font-mono">{e.codigo}</span>
+                      {e.usado_en ? (
+                        <Badge variant="secondary">Respondido</Badge>
+                      ) : (
+                        <Badge variant="outline">Sin responder</Badge>
+                      )}
+                      <Badge variant="outline">{e.visitas.length} apertura{e.visitas.length === 1 ? "" : "s"}</Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Generado: {new Date(e.creado_en).toLocaleString("es-EC")}
+                      {e.usado_en && ` · Respondido: ${new Date(e.usado_en).toLocaleString("es-EC")}`}
+                    </p>
+                    {e.visitas.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Aún no se ha abierto.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {e.visitas.map((v, i) => (
+                          <div key={i} className="text-xs border-l-2 border-cyan-400 pl-3 py-1">
+                            {new Date(v.visitado_en).toLocaleString("es-EC")} · IP: {v.ip_address ?? "—"} ·
+                            Dispositivo: {v.device_id ? `${v.device_id.slice(0, 8)}...` : "—"}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
           )}
         </CardContent>
       </Card>

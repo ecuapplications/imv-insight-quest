@@ -6,17 +6,42 @@ $method = $_SERVER['REQUEST_METHOD'];
 $db = get_db();
 
 if ($method === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $nombre = trim($body['nombre_paciente'] ?? '');
+    $telefono = trim($body['telefono'] ?? '');
+    if ($nombre === '' || $telefono === '') {
+        json_error('El nombre y el teléfono del paciente son requeridos', 400);
+    }
+
     $codigo = bin2hex(random_bytes(5));
-    $stmt = $db->prepare('INSERT INTO enlaces_encuesta (codigo) VALUES (:codigo)');
-    $stmt->execute(['codigo' => $codigo]);
+    $stmt = $db->prepare(
+        'INSERT INTO enlaces_encuesta (codigo, nombre_paciente, telefono) VALUES (:codigo, :nombre, :telefono)'
+    );
+    $stmt->execute(['codigo' => $codigo, 'nombre' => $nombre, 'telefono' => $telefono]);
     json_ok(['codigo' => $codigo, 'url' => '/s/' . $codigo]);
 }
 
 if ($method === 'GET') {
     $stmt = $db->query(
-        'SELECT codigo, creado_en, usado_en FROM enlaces_encuesta ORDER BY creado_en DESC LIMIT 50'
+        "SELECT e.codigo, e.nombre_paciente, e.telefono, e.creado_en, e.usado_en,
+                COALESCE(
+                  (SELECT json_agg(json_build_object(
+                            'device_id', v.device_id,
+                            'ip_address', v.ip_address,
+                            'visitado_en', v.visitado_en
+                          ) ORDER BY v.visitado_en DESC)
+                   FROM enlace_visitas v WHERE v.enlace_id = e.id),
+                  '[]'
+                ) AS visitas
+         FROM enlaces_encuesta e
+         ORDER BY e.creado_en DESC LIMIT 50"
     );
-    json_ok($stmt->fetchAll());
+    $rows = $stmt->fetchAll();
+    foreach ($rows as &$row) {
+        $row['visitas'] = json_decode($row['visitas'], true);
+    }
+    unset($row);
+    json_ok($rows);
 }
 
 json_error('Método no permitido', 405);

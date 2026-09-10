@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +34,15 @@ const Survey = () => {
   const [formLoadedAt] = useState(() => Date.now());
   const [alreadyToday, setAlreadyToday] = useState(() => !codigo && hasSubmittedToday());
   const [linkAlreadyUsed, setLinkAlreadyUsed] = useState(false);
+
+  useEffect(() => {
+    if (codigo) {
+      api.post("/enlace-visita.php", { codigo, device_id: getDeviceId() }).catch((error) => {
+        console.error("Error logging link visit:", error);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const totalSteps = 7; // Intro + 5 questions + comment
 

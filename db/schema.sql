@@ -92,9 +92,21 @@ CREATE TABLE public.admins (
 CREATE TABLE public.enlaces_encuesta (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   codigo TEXT NOT NULL UNIQUE,
+  nombre_paciente TEXT,
+  telefono TEXT,
   creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   usado_en TIMESTAMP WITH TIME ZONE,
   encuesta_id UUID REFERENCES public.encuestas(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_enlaces_codigo ON public.enlaces_encuesta(codigo);
+
+CREATE TABLE public.enlace_visitas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enlace_id UUID NOT NULL REFERENCES public.enlaces_encuesta(id) ON DELETE CASCADE,
+  device_id UUID,
+  ip_address INET,
+  visitado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_enlace_visitas_enlace_id ON public.enlace_visitas(enlace_id);
