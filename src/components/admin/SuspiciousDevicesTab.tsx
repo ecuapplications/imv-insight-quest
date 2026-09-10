@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,6 +10,8 @@ import {
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ShieldAlert } from "lucide-react";
+import PeriodFilter from "./PeriodFilter";
+import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
 
 type RegistroSospechoso = {
   id: string;
@@ -27,6 +29,7 @@ type DispositivoSospechoso = {
 const SuspiciousDevicesTab = () => {
   const [dispositivos, setDispositivos] = useState<DispositivoSospechoso[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<PeriodRange>(null);
 
   useEffect(() => {
     fetchDispositivos();
@@ -46,6 +49,21 @@ const SuspiciousDevicesTab = () => {
     }
   };
 
+  const availableDates = useMemo(
+    () => dispositivos.flatMap((d) => d.registros.map((r) => new Date(r.fecha_creacion))),
+    [dispositivos],
+  );
+
+  const dispositivosFiltrados = useMemo(() => {
+    if (!range) return dispositivos;
+    return dispositivos
+      .map((d) => ({
+        ...d,
+        registros: d.registros.filter((r) => isWithinRange(new Date(r.fecha_creacion), range)),
+      }))
+      .filter((d) => d.registros.length > 0);
+  }, [dispositivos, range]);
+
   if (loading) {
     return <p className="text-center text-muted-foreground py-8">Cargando...</p>;
   }
@@ -61,18 +79,23 @@ const SuspiciousDevicesTab = () => {
           Dispositivos con más de 2 encuestas registradas en los últimos 7 días. Esto no bloquea nada
           automáticamente — es para revisión manual del equipo.
         </p>
+        <div className="pt-2">
+          <PeriodFilter dates={availableDates} onChange={setRange} label="Filtrar registros por período" />
+        </div>
       </CardHeader>
       <CardContent>
-        {dispositivos.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No hay dispositivos sospechosos por ahora.</p>
+        {dispositivosFiltrados.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            {range ? "No hay registros sospechosos en el período seleccionado." : "No hay dispositivos sospechosos por ahora."}
+          </p>
         ) : (
           <Accordion type="single" collapsible className="w-full">
-            {dispositivos.map((d) => (
+            {dispositivosFiltrados.map((d) => (
               <AccordionItem key={d.device_id} value={d.device_id}>
                 <AccordionTrigger className="text-sm">
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-xs">{d.device_id.slice(0, 8)}...</span>
-                    <Badge variant="destructive">{d.total} registros en 7 días</Badge>
+                    <Badge variant="destructive">{d.registros.length} registros</Badge>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>

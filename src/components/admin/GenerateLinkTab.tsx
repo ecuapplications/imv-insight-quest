@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import QRCode from "qrcode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,11 @@ import {
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link2, MessageCircle, QrCode, Copy } from "lucide-react";
+import PeriodFilter from "./PeriodFilter";
+import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
+import {
+  EC, CO, PE, US, ES, MX, CL, AR, VE, BO, PY, UY, CR, PA, GT, SV, HN, NI,
+} from "country-flag-icons/react/3x2";
 
 type Visita = {
   device_id: string | null;
@@ -37,24 +42,24 @@ type Enlace = {
 };
 
 const PAISES = [
-  { code: "593", flag: "🇪🇨", name: "Ecuador" },
-  { code: "57", flag: "🇨🇴", name: "Colombia" },
-  { code: "51", flag: "🇵🇪", name: "Perú" },
-  { code: "1", flag: "🇺🇸", name: "Estados Unidos" },
-  { code: "34", flag: "🇪🇸", name: "España" },
-  { code: "52", flag: "🇲🇽", name: "México" },
-  { code: "56", flag: "🇨🇱", name: "Chile" },
-  { code: "54", flag: "🇦🇷", name: "Argentina" },
-  { code: "58", flag: "🇻🇪", name: "Venezuela" },
-  { code: "591", flag: "🇧🇴", name: "Bolivia" },
-  { code: "595", flag: "🇵🇾", name: "Paraguay" },
-  { code: "598", flag: "🇺🇾", name: "Uruguay" },
-  { code: "506", flag: "🇨🇷", name: "Costa Rica" },
-  { code: "507", flag: "🇵🇦", name: "Panamá" },
-  { code: "502", flag: "🇬🇹", name: "Guatemala" },
-  { code: "503", flag: "🇸🇻", name: "El Salvador" },
-  { code: "504", flag: "🇭🇳", name: "Honduras" },
-  { code: "505", flag: "🇳🇮", name: "Nicaragua" },
+  { code: "593", Flag: EC, name: "Ecuador" },
+  { code: "57", Flag: CO, name: "Colombia" },
+  { code: "51", Flag: PE, name: "Perú" },
+  { code: "1", Flag: US, name: "Estados Unidos" },
+  { code: "34", Flag: ES, name: "España" },
+  { code: "52", Flag: MX, name: "México" },
+  { code: "56", Flag: CL, name: "Chile" },
+  { code: "54", Flag: AR, name: "Argentina" },
+  { code: "58", Flag: VE, name: "Venezuela" },
+  { code: "591", Flag: BO, name: "Bolivia" },
+  { code: "595", Flag: PY, name: "Paraguay" },
+  { code: "598", Flag: UY, name: "Uruguay" },
+  { code: "506", Flag: CR, name: "Costa Rica" },
+  { code: "507", Flag: PA, name: "Panamá" },
+  { code: "502", Flag: GT, name: "Guatemala" },
+  { code: "503", Flag: SV, name: "El Salvador" },
+  { code: "504", Flag: HN, name: "Honduras" },
+  { code: "505", Flag: NI, name: "Nicaragua" },
 ];
 
 // En producción es "" (sin prefijo); en un deploy de staging bajo una
@@ -71,6 +76,7 @@ const GenerateLinkTab = () => {
   const [nombrePaciente, setNombrePaciente] = useState("");
   const [paisCodigo, setPaisCodigo] = useState("593");
   const [telefono, setTelefono] = useState("");
+  const [range, setRange] = useState<PeriodRange>(null);
 
   useEffect(() => {
     fetchEnlaces();
@@ -89,6 +95,12 @@ const GenerateLinkTab = () => {
       setLoading(false);
     }
   };
+
+  const availableDates = useMemo(() => enlaces.map((e) => new Date(e.creado_en)), [enlaces]);
+  const enlacesFiltrados = useMemo(
+    () => enlaces.filter((e) => isWithinRange(new Date(e.creado_en), range)),
+    [enlaces, range],
+  );
 
   const numeroLimpio = telefono.replace(/[^0-9]/g, "");
   const puedeGenerar = nombrePaciente.trim() !== "" && numeroLimpio !== "";
@@ -164,7 +176,10 @@ const GenerateLinkTab = () => {
               <SelectContent>
                 {PAISES.map((p) => (
                   <SelectItem key={`${p.code}-${p.name}`} value={p.code}>
-                    {p.flag} +{p.code} {p.name}
+                    <span className="flex items-center gap-2">
+                      <p.Flag className="h-3.5 w-5 shrink-0 rounded-sm" title={p.name} />
+                      +{p.code} {p.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -217,15 +232,20 @@ const GenerateLinkTab = () => {
           <p className="text-sm text-muted-foreground">
             Expande un enlace para ver el registro de aperturas: dispositivo e IP desde donde se abrió.
           </p>
+          <div className="pt-2">
+            <PeriodFilter dates={availableDates} onChange={setRange} label="Filtrar enlaces por período" />
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Cargando...</p>
-          ) : enlaces.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aún no se han generado enlaces.</p>
+          ) : enlacesFiltrados.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {range ? "No hay enlaces generados en el período seleccionado." : "Aún no se han generado enlaces."}
+            </p>
           ) : (
             <Accordion type="single" collapsible className="w-full">
-              {enlaces.map((e) => (
+              {enlacesFiltrados.map((e) => (
                 <AccordionItem key={e.codigo} value={e.codigo}>
                   <AccordionTrigger className="text-sm">
                     <div className="flex flex-wrap items-center gap-2 text-left">
