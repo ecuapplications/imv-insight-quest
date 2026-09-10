@@ -2,61 +2,60 @@
 
 ## 1) Objetivo
 
-Reforzar la encuesta pública (`imv-insight-quest`) contra bots y uso abusivo, y agregar distribución controlada por enlaces de un solo uso enviados por WhatsApp — sin login del paciente. Propuesta comercial aprobada: $120 USD fijo, entrega máxima 3-5 días.
+Reforzar la encuesta pública (`imv-insight-quest`) contra bots y uso abusivo, distribuir la encuesta por enlaces de un solo uso enviados por WhatsApp (sin login del paciente), identificar a los pacientes que responden, y dar al panel de administración una experiencia mobile-first con roles de acceso diferenciados (admin vs recepción).
 
 ## 2) Estado actual
 
-Rama de trabajo: `alpha` (sin PR, por instrucción explícita del usuario). Todo lo de abajo está commiteado y pusheado a `origin/alpha`.
+Rama de trabajo: `alpha` (sin PR, por instrucción explícita del usuario — todo se pushea directo a `origin/alpha`). Todo lo de abajo está commiteado y pusheado.
 
-**Funciona y está verificado localmente** (Postgres local + PHP built-in server + `curl`):
-- Honeypot y chequeo de tiempo de llenado (rechaza en silencio, sin insertar).
-- Rate limit de 10 envíos/hora por IP.
-- Límite de 1 envío por día por `device_id` (validado en servidor).
-- Endpoint + pestaña "Dispositivos Sospechosos" (`device_id` con >2 registros en 7 días).
-- Enlaces de un solo uso: generar → responder → reintentar con el mismo código → rechazado. Probado de punta a punta con `curl`.
-- Pantalla admin "Generar Enlace" (QR + botón WhatsApp): compila sin errores, **no probada en navegador real**.
+**Completo y verificado (local: Postgres + PHP built-in server + `curl` + Playwright):**
+- Antifraude: honeypot, chequeo de tiempo de llenado, rate limit de 10/hora por IP, límite de 1 envío/día por `device_id`, pestaña "Dispositivos Sospechosos".
+- **Cloudflare Turnstile fue removido por completo** (el usuario lo consideró inviable técnicamente) — no queda código ni script de Turnstile en el proyecto.
+- Enlaces de un solo uso: generar (nombre + apellido + teléfono obligatorios) → QR + botón WhatsApp + copiar mensaje → paciente abre el link → se registra cada apertura (`device_id` + IP) → al responder, se marca `usado_en` en el enlace **y** se marca `respondido = true` en la apertura (`enlace_visitas`) específica que originó la respuesta.
+- Si un paciente vuelve a abrir un enlace ya respondido, la encuesta lo detecta de forma **proactiva** (antes de que intente enviar) y le muestra "Ya recibimos tu respuesta, {nombre}" con opción de dejar un **comentario adicional** (`POST /api/enlace-comentario.php`), visible en el admin dentro del enlace correspondiente.
+- Panel admin rediseñado mobile-first: bottom navigation, menú hamburguesa, swipe entre pestañas, thumb-zone friendly. Todos los emojis fueron reemplazados por iconos SVG (Lucide) tanto en el formulario público como en el admin.
+- Filtros de período (día/mes/año exactos, con selector de calendario) activos y funcionando en Estadísticas, Gestión de Comentarios (Kanban — el filtro estaba roto, se corrigió), Sospechosos y Enlaces.
+- **Nueva pestaña "Comentarios"** (`src/components/admin/ComentariosTab.tsx`): listado de cards con nombre, apellido, teléfono (o "Anónimo" si la respuesta no viene de un enlace válido) y las 5 respuestas + comentario de cada encuesta, con búsqueda por nombre/teléfono y filtro de período. **Es la pestaña por defecto** al entrar al panel.
+- Kanban: cada card ahora muestra el nombre/apellido/teléfono del paciente (o "Anónimo").
+- **Roles de administrador**: `admin` (acceso total) y `recepcion` (solo ve y usa la pestaña Enlaces — todo lo demás, incluido el bottom nav y el menú de pestañas, queda oculto). Aplicado tanto en frontend (`AdminDashboard.tsx`) como en backend (`require_admin()` en `api/lib/auth.php`, aplicado a `encuestas.php`, `dispositivos-sospechosos.php`, `responsables.php`, `tareas.php`, `etiquetas.php`; `enlaces.php` queda abierto a ambos roles).
+- Usuario `recepcion@imvcientific.com` / `imv#$26R` creado (rol `recepcion`) — probado con login real y verificado que solo ve Enlaces.
+- Encuesta personalizada: saluda por el primer nombre del paciente cuando viene de un enlace (nunca el apellido — el apellido es dato admin-only).
 
-**Escrito pero NO probado de punta a punta:**
-- Cloudflare Turnstile: el código (`api/lib/turnstile.php`) está completo y es correcto (verificado que maneja bien el caso de fallo de red), pero el camino de **éxito real** (token válido resuelto por un usuario) no se pudo probar aquí — ver sección 4.
+**Verificado con Playwright (desktop 1280×900 y mobile 390×844):** login admin → tab Comentarios por defecto, tab Enlaces con campo Apellido, tab Kanban con identificadores, login recepción → solo ve Enlaces (desktop y mobile), pantalla de "enlace ya respondido" con formulario de comentario adicional.
 
-**Pendiente (Task 8 del plan, no iniciado):**
-- Claves reales de Cloudflare Turnstile (site key + secret key) — las debe generar el usuario.
-- Aplicar `db/migrations/2026-09-10-antifraude.sql` a la base de producción en SiteGround.
-- Build + deploy a producción con claves reales.
-- Pruebas en navegador/celular real: widget de Turnstile, botón de WhatsApp, escaneo de QR.
+**Pendiente (no iniciado en esta sesión, heredado de la Task 8 original):**
+- Pruebas de integración final y despliegue a producción real (`imvhealths.sg-host.com` root) — hasta ahora todo se ha probado vía staging en `/alpha/` (mismo dominio, subcarpeta, reutilizando la base de datos de producción).
+- Aplicar la migración `db/migrations/2026-09-10-comentarios-roles.sql` contra el Postgres de producción en SiteGround.
+- Crear el usuario `recepcion@imvcientific.com` en la base de producción (mismo comando `seed_admin.php`, ver sección 5).
 
-## 3) Archivos y cambios en esta sesión
+## 3) Archivos y cambios de esta sesión (Fase 9)
 
-- `db/schema.sql`, `db/migrations/2026-09-10-antifraude.sql` — columnas `encuestas.device_id` (uuid), `encuestas.ip_address` (inet), tabla `enlaces_encuesta`, índices.
-- `api/encuestas.php` — agrega honeypot, chequeo de tiempo, verificación Turnstile, rate-limit IP, límite diario por dispositivo, validación/consumo de `codigo_enlace`. Insert ahora guarda `device_id` e `ip_address`.
-- `api/lib/turnstile.php` (nuevo) — `turnstile_verify()`.
-- `api/dispositivos-sospechosos.php` (nuevo) — endpoint JWT, ventana de 7 días.
-- `api/enlaces.php` (nuevo) — `POST` genera código, `GET` lista los últimos 50.
-- `api/config.example.php` — agrega `turnstile_secret`, `rate_limit_ip_por_hora`.
-- `src/lib/deviceId.ts` (nuevo) — `getDeviceId()`, `hasSubmittedToday()`, `markSubmittedToday()`.
-- `src/pages/Survey.tsx` — honeypot oculto, captura de tiempo, widget de Turnstile, `device_id`, ruta `/s/:codigo`, pantallas de "ya respondiste hoy" y "enlace ya utilizado".
-- `src/App.tsx` — ruta `/s/:codigo`.
-- `src/components/admin/SuspiciousDevicesTab.tsx` (nuevo), `src/components/admin/GenerateLinkTab.tsx` (nuevo).
-- `src/pages/AdminDashboard.tsx` — pestañas "Sospechosos" y "Enlaces".
-- `index.html` — script de Cloudflare Turnstile.
-- `.env.example`, `.env` — `VITE_TURNSTILE_SITE_KEY` (en `.env` local usa la site key pública de prueba de Cloudflare, no un secreto).
-- `package.json` — dependencia `qrcode` (+ `@types/qrcode`).
-- `docs/superpowers/specs/2026-09-10-seguridad-antifraude-encuesta-design.md`, `docs/superpowers/plans/2026-09-10-seguridad-antifraude-encuesta.md` — spec y plan de esta feature (creados en la sesión anterior, ya en `main-aliksf`/PR #2, no en `alpha`).
+- `db/schema.sql`, `db/migrations/2026-09-10-comentarios-roles.sql` (nuevo) — `enlaces_encuesta.apellido_paciente`, `enlace_visitas.respondido`, tabla nueva `enlace_comentarios_adicionales`, `admins.role` (CHECK `admin`/`recepcion`, default `admin`).
+- `api/encuestas.php` — GET ahora hace `LEFT JOIN` con `enlaces_encuesta` para exponer `nombre_paciente`/`apellido_paciente`/`telefono`; POST marca la apertura (`enlace_visitas`) más reciente del mismo `device_id` (o la más reciente en general si no hay match) como `respondido = true` al recibir una respuesta vía `codigo_enlace`. Ahora requiere `require_admin()` en vez de `require_auth()`.
+- `api/enlaces.php` — lookup público ahora también devuelve `usado: boolean`; POST exige `apellido_paciente`; GET admin agrega `apellido_paciente`, `visitas[].respondido` y `comentarios_adicionales[]` (vía `json_agg`).
+- `api/enlace-comentario.php` (nuevo) — POST público, sin auth: guarda un comentario adicional ligado a un `codigo` de enlace ya usado.
+- `api/lib/auth.php` — nueva función `require_admin()` (envuelve `require_auth()` y exige `role === 'admin'`, 403 si no).
+- `api/auth/login.php`, `api/auth/me.php` — el JWT y la respuesta de `/me.php` ahora incluyen `role`.
+- `api/dispositivos-sospechosos.php`, `api/responsables.php`, `api/tareas.php`, `api/etiquetas.php` (POST/DELETE) — cambiados de `require_auth()` a `require_admin()`.
+- `api/scripts/seed_admin.php` — acepta un tercer argumento opcional de rol (`admin`|`recepcion`, default `admin`).
+- `src/lib/api.ts` — `AdminRole`, `setRole()`, `getRole()`; `login()` ahora persiste el rol devuelto por el backend; `logout()` limpia el rol también.
+- `src/components/admin/ComentariosTab.tsx` (nuevo) — la pestaña de cards descrita arriba.
+- `src/components/admin/KanbanTab.tsx` — cards muestran nombre/apellido/teléfono o "Anónimo".
+- `src/components/admin/GenerateLinkTab.tsx` — campo Apellido (obligatorio), tipo `Enlace` extendido (`apellido_paciente`, `visitas[].respondido`, `comentarios_adicionales`), badge "Respondido"/apertura que generó la respuesta, listado de comentarios adicionales por enlace.
+- `src/pages/Survey.tsx` — el lookup público al montar ahora also lee `usado`; si es `true`, salta directo a la pantalla de "ya recibimos tu respuesta" (antes solo se detectaba reactivamente al fallar el submit) con formulario de comentario adicional (`POST /api/enlace-comentario.php`).
+- `src/pages/AdminDashboard.tsx` — nueva pestaña "Comentarios" (primera en la lista, pestaña por defecto); `visibleTabs` filtra las pestañas según `getRole()` (recepción solo ve "enlaces"); bottom nav usa `grid-template-columns` dinámico y se oculta si solo hay 1 pestaña visible.
 
-**No commiteado (correcto, no debe estarlo):** `api/config.php` local con datos de prueba (Postgres local `imv_test`, secret de Turnstile de prueba de Cloudflare).
+**No commiteado (correcto):** `api/config.php` local (Postgres local `imv_test`), `.env.local` temporal usado solo para las pruebas de esta sesión (ya eliminado).
 
 ## 4) Intentos fallidos
 
-- **No se pudo verificar Cloudflare Turnstile de punta a punta.** El proxy de salida de este sandbox bloquea explícitamente `challenges.cloudflare.com` (confirmado con `curl` directo: `CONNECT tunnel failed, response 403`). Para poder probar el resto del flujo (tareas 4-7) se usó un bypass temporal en `api/lib/turnstile.php` (`return true;` al inicio de la función), **revertido con `git checkout` antes de cada commit** — el código commiteado siempre tiene la verificación real. No repetir el bypass en producción ni dejarlo commiteado por accidente.
-- **`(php -S localhost:8000 -t . &)` en subshell fallaba intermitentemente** (el proceso moría solo, o el comando se reportaba con exit code 144). Solución: usar `nohup php -S ... > log 2>&1 & disown`.
-- **Las pruebas de rate-limit por IP y de "dispositivos sospechosos" se pisaron entre sí** en la misma sesión de pruebas, porque comparten la IP `127.0.0.1` dentro de la ventana de 1 hora del rate-limit. Hubo que actualizar `fecha_creacion` manualmente vía SQL para aislar cada prueba. Si se vuelve a probar localmente: limpiar la tabla `encuestas` de prueba entre bloques, o usar `fecha_creacion` distintas a propósito.
+- Nada digno de mención en esta sesión — todo el flujo backend se verificó de punta a punta con `curl` (login admin/recepción, generar enlace sin apellido → rechazado, generar con apellido → OK, loguear apertura, responder vía `codigo_enlace`, verificar `respondido=true` en la apertura correcta, verificar `usado=true` en el lookup público, enviar comentario adicional, verlo en el listado admin) antes de tocar el frontend, y el frontend se verificó visualmente con Playwright (desktop + mobile, ambos roles).
+- Nota operativa (ya conocida de sesiones anteriores, se repitió aquí): los procesos en background (`php -S`, `vite`) a veces reportan `exit code 144` aunque sigan corriendo o mueran — siempre verificar con `ps aux` / `curl` después de lanzarlos, y usar `nohup ... & disown` en vez de subshells `(cmd &)`.
 
 ## 5) Próximos pasos (en orden)
 
-1. Pedir al usuario que cree una cuenta de Cloudflare Turnstile y un widget para `imvhealths.sg-host.com` (+ `localhost` para dev) — obtener site key y secret key reales.
-2. Actualizar el `api/config.php` de producción con el `turnstile_secret` real (nunca commitearlo).
-3. Aplicar `db/migrations/2026-09-10-antifraude.sql` contra el Postgres de producción en SiteGround (mismo procedimiento que la migración anterior — host `34.174.223.131`, confirmado que funciona desde la máquina del usuario).
-4. Build de producción: `VITE_API_URL=/api VITE_TURNSTILE_SITE_KEY=<site_key_real> npm run build`.
-5. Empaquetar y subir `dist/` + `api/` (incluye los archivos nuevos: `turnstile.php`, `dispositivos-sospechosos.php`, `enlaces.php`) + `index.html` actualizado a `public_html`, igual que el deploy anterior.
-6. Probar en producción con dispositivos reales: encuesta normal, límite diario, generar enlace y enviarlo por WhatsApp desde un celular real, pestaña de sospechosos.
-7. Confirmar con el usuario cómo se integra `alpha` a `main` (pidió explícitamente no abrir PR contra `alpha`) — o si se despliega directo desde ahí.
+1. Aplicar `db/migrations/2026-09-10-comentarios-roles.sql` contra el Postgres de producción en SiteGround (mismo procedimiento que las migraciones anteriores).
+2. Crear el usuario de recepción en producción: `php api/scripts/seed_admin.php recepcion@imvcientific.com 'imv#$26R' recepcion` (ejecutar en el hosting, con el `config.php` de producción).
+3. Build + subir a `/alpha/` (staging) para que el usuario pruebe la Fase 9 completa con datos reales antes de ir a producción — mismo procedimiento de siempre (`vite build --base=/alpha/`, empaquetar `dist/` + `api/` + `.htaccess` con `RewriteBase /alpha/` + `config.php` de staging).
+4. Una vez aprobado por el usuario: definir con él cómo se pasa esto a producción real (`imvhealths.sg-host.com` root) — sigue pendiente la Task 8 original (pruebas integrales + despliegue final), nunca cerrada formalmente.
+5. Si el usuario pide más cambios sobre roles/permisos: recordar que `enlaces.php` es la única ruta abierta a ambos roles; cualquier endpoint nuevo debe decidir explícitamente si usa `require_auth()` (ambos roles) o `require_admin()` (solo admin).
