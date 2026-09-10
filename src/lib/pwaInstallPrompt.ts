@@ -7,6 +7,8 @@
 // (no se repite en navegación interna de React Router), así que basta con
 // evaluar la ruta una sola vez al cargar.
 
+import { BASE_PATH } from "@/lib/basePath";
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -15,10 +17,9 @@ interface BeforeInstallPromptEvent extends Event {
 let stashedEvent: BeforeInstallPromptEvent | null = null;
 
 function isAdminRoute(): boolean {
-  const basePath = (import.meta.env.VITE_BASE_PATH as string | undefined) || "";
   let path = window.location.pathname;
-  if (basePath && path.startsWith(basePath)) {
-    path = path.slice(basePath.length);
+  if (BASE_PATH && path.startsWith(BASE_PATH)) {
+    path = path.slice(BASE_PATH.length);
   }
   return path.startsWith("/admin");
 }

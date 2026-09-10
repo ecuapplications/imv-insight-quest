@@ -7,6 +7,7 @@ import Survey from "./pages/Survey";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import { BASE_PATH } from "@/lib/basePath";
 
 const queryClient = new QueryClient();
 
@@ -15,7 +16,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || "/"}>
+      <BrowserRouter basename={BASE_PATH || "/"}>
         <Routes>
           <Route path="/" element={<Survey />} />
           <Route path="/s/:codigo" element={<Survey />} />

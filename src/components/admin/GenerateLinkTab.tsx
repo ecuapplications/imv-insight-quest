@@ -23,6 +23,7 @@ import { Link2, MessageCircle, QrCode, Copy, CheckCircle2, MessageSquarePlus, Cl
 import PeriodFilter from "./PeriodFilter";
 import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
 import { normalizeLocalNumber, parsePastedPhone, stripToDigits } from "@/lib/phone";
+import { BASE_PATH } from "@/lib/basePath";
 import {
   EC, CO, PE, US, ES, MX, CL, AR, VE, BO, PY, UY, CR, PA, GT, SV, HN, NI,
 } from "country-flag-icons/react/3x2";
@@ -70,11 +71,6 @@ const PAISES = [
   { code: "504", Flag: HN, name: "Honduras" },
   { code: "505", Flag: NI, name: "Nicaragua" },
 ];
-
-// En producción es "" (sin prefijo); en un deploy de staging bajo una
-// subcarpeta (ej. /alpha/) se define VITE_BASE_PATH para que los enlaces
-// generados incluyan ese prefijo también.
-const BASE_PATH = (import.meta.env.VITE_BASE_PATH as string | undefined) || "";
 
 const PAISES_CODES = [
   "593", "57", "51", "1", "34", "52", "56", "54", "58", "591", "595", "598", "506", "507", "502", "503", "504", "505",

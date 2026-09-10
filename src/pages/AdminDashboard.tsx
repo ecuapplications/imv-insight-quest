@@ -17,6 +17,7 @@ import SuspiciousDevicesTab from "@/components/admin/SuspiciousDevicesTab";
 import GenerateLinkTab from "@/components/admin/GenerateLinkTab";
 import NotificationBell from "@/components/admin/NotificationBell";
 import { logout, isAuthenticated, getRole } from "@/lib/api";
+import { BASE_PATH } from "@/lib/basePath";
 
 const TABS = [
   { value: "comentarios", label: "Comentarios", shortLabel: "Comentarios", icon: MessageSquareText },
@@ -53,7 +54,7 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    window.location.href = "/admin-login";
+    window.location.href = `${BASE_PATH}/admin-login`;
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
