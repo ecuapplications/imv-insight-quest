@@ -1,9 +1,20 @@
 <?php
 require __DIR__ . '/bootstrap.php';
-require_auth();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $db = get_db();
+
+// Consulta pública de un solo código — usada por la encuesta (/s/:codigo) para
+// saludar al paciente por su nombre. No requiere auth, y solo expone el
+// nombre, nunca el teléfono ni el listado completo.
+if ($method === 'GET' && !empty($_GET['codigo'])) {
+    $stmt = $db->prepare('SELECT nombre_paciente FROM enlaces_encuesta WHERE codigo = :codigo');
+    $stmt->execute(['codigo' => $_GET['codigo']]);
+    $enlace = $stmt->fetch();
+    json_ok($enlace ? ['nombre_paciente' => $enlace['nombre_paciente']] : null);
+}
+
+require_auth();
 
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];

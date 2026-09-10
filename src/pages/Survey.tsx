@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { getDeviceId, hasSubmittedToday, markSubmittedToday } from "@/lib/deviceId";
-import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown } from "lucide-react"; // 1. Importamos los iconos
+import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown, MessageSquareHeart } from "lucide-react";
 import { toast } from "sonner";
 
 type Answers = {
@@ -34,21 +34,30 @@ const Survey = () => {
   const [formLoadedAt] = useState(() => Date.now());
   const [alreadyToday, setAlreadyToday] = useState(() => !codigo && hasSubmittedToday());
   const [linkAlreadyUsed, setLinkAlreadyUsed] = useState(false);
+  const [nombrePaciente, setNombrePaciente] = useState<string | null>(null);
 
   useEffect(() => {
     if (codigo) {
       api.post("/enlace-visita.php", { codigo, device_id: getDeviceId() }).catch((error) => {
         console.error("Error logging link visit:", error);
       });
+      api
+        .get<{ nombre_paciente: string | null }>(`/enlaces.php?codigo=${encodeURIComponent(codigo)}`)
+        .then(({ data }) => {
+          if (data?.nombre_paciente) setNombrePaciente(data.nombre_paciente);
+        })
+        .catch((error) => console.error("Error fetching patient name:", error));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const primerNombre = nombrePaciente?.trim().split(/\s+/)[0] ?? null;
 
   const totalSteps = 7; // Intro + 5 questions + comment
 
   const questions = [
     {
-      text: "Hola, le saludamos del equipo de gestión de calidad del IMV Health Digestive, agradecemos que nos dedique unos minutos de su tiempo para responder la siguiente encuesta:",
+      text: `Hola${primerNombre ? ` ${primerNombre}` : ""}, le saludamos del equipo de gestión de calidad del IMV Health Digestive, agradecemos que nos dedique unos minutos de su tiempo para responder la siguiente encuesta:`,
       type: "intro",
     },
     {
@@ -77,7 +86,7 @@ const Survey = () => {
       options: ["Excelente", "Buena", "Regular", "Mala"],
     },
     {
-      text: "Déjanos un comentario, sugerencia o felicitación para el personal de recepción 😊",
+      text: "Déjanos un comentario, sugerencia o felicitación para el personal de recepción",
       key: "comentario" as keyof Answers,
       type: "textarea",
     },
@@ -150,7 +159,9 @@ const Survey = () => {
         <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in-50 duration-700">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] bg-clip-text text-transparent">
-              {linkAlreadyUsed ? "Enlace ya utilizado" : "¡Gracias!"}
+              {linkAlreadyUsed
+                ? "Enlace ya utilizado"
+                : `¡Gracias${primerNombre && currentStep === totalSteps ? `, ${primerNombre}` : ""}!`}
             </h1>
             <p className="text-xl text-[hsl(var(--survey-text-light))] opacity-90">
               {linkAlreadyUsed
@@ -194,7 +205,10 @@ const Survey = () => {
 
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="max-w-3xl w-full space-y-12 animate-in fade-in-50 duration-300">
-          <h2 className="text-2xl md:text-4xl font-medium text-[hsl(var(--survey-text-light))] text-center leading-relaxed">
+          <h2 className="text-2xl md:text-4xl font-medium text-[hsl(var(--survey-text-light))] text-center leading-relaxed flex items-center justify-center gap-3">
+            {currentQuestion.type === "textarea" && (
+              <MessageSquareHeart className="h-7 w-7 md:h-9 md:w-9 shrink-0 text-[hsl(var(--imv-cyan))]" />
+            )}
             {currentQuestion.text}
           </h2>
 
