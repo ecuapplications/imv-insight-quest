@@ -8,15 +8,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, BarChart3, Kanban, Tag, ShieldAlert, Link2, Menu } from "lucide-react";
+import { LogOut, BarChart3, Kanban, Tag, ShieldAlert, Link2, Menu, MessageSquareText } from "lucide-react";
 import StatsTab from "@/components/admin/StatsTab";
 import KanbanTab from "@/components/admin/KanbanTab";
+import ComentariosTab from "@/components/admin/ComentariosTab";
 import TagsManagementTab from "@/components/admin/TagsManagementTab";
 import SuspiciousDevicesTab from "@/components/admin/SuspiciousDevicesTab";
 import GenerateLinkTab from "@/components/admin/GenerateLinkTab";
-import { logout, isAuthenticated } from "@/lib/api";
+import { logout, isAuthenticated, getRole } from "@/lib/api";
 
 const TABS = [
+  { value: "comentarios", label: "Comentarios", shortLabel: "Comentarios", icon: MessageSquareText },
   { value: "stats", label: "Estadísticas", shortLabel: "Stats", icon: BarChart3 },
   { value: "kanban", label: "Gestión de Comentarios", shortLabel: "Kanban", icon: Kanban },
   { value: "tags", label: "Gestión de Etiquetas", shortLabel: "Tags", icon: Tag },
@@ -28,7 +30,10 @@ const SWIPE_THRESHOLD_PX = 60;
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("kanban");
+  const role = getRole();
+  // El rol "recepcion" solo puede ver y usar la pestaña de Enlaces.
+  const visibleTabs = role === "recepcion" ? TABS.filter((t) => t.value === "enlaces") : TABS;
+  const [activeTab, setActiveTab] = useState(role === "recepcion" ? "enlaces" : "comentarios");
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -58,13 +63,13 @@ const AdminDashboard = () => {
     // Ignorar si el gesto fue más vertical que horizontal (scroll normal)
     if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) < Math.abs(deltaY)) return;
 
-    const currentIndex = TABS.findIndex((t) => t.value === activeTab);
+    const currentIndex = visibleTabs.findIndex((t) => t.value === activeTab);
     if (currentIndex === -1) return;
 
-    if (deltaX < 0 && currentIndex < TABS.length - 1) {
-      setActiveTab(TABS[currentIndex + 1].value);
+    if (deltaX < 0 && currentIndex < visibleTabs.length - 1) {
+      setActiveTab(visibleTabs[currentIndex + 1].value);
     } else if (deltaX > 0 && currentIndex > 0) {
-      setActiveTab(TABS[currentIndex - 1].value);
+      setActiveTab(visibleTabs[currentIndex - 1].value);
     }
   };
 
@@ -91,7 +96,7 @@ const AdminDashboard = () => {
 
             {/* Pestañas: visibles como tabs horizontales solo en pantallas medianas+ */}
             <TabsList className="hidden md:flex p-1 h-auto bg-gray-100 rounded-lg">
-              {TABS.map(({ value, label, icon: Icon }) => (
+              {visibleTabs.map(({ value, label, icon: Icon }) => (
                 <TabsTrigger
                   key={value}
                   value={value}
@@ -141,31 +146,45 @@ const AdminDashboard = () => {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <TabsContent value="stats" className="space-y-6">
-            <StatsTab />
-          </TabsContent>
-          <TabsContent value="kanban" className="space-y-6">
-            <KanbanTab />
-          </TabsContent>
-          <TabsContent value="tags" className="space-y-6">
-            <TagsManagementTab />
-          </TabsContent>
-          <TabsContent value="sospechosos" className="space-y-6">
-            <SuspiciousDevicesTab />
-          </TabsContent>
+          {visibleTabs.some((t) => t.value === "comentarios") && (
+            <TabsContent value="comentarios" className="space-y-6">
+              <ComentariosTab />
+            </TabsContent>
+          )}
+          {visibleTabs.some((t) => t.value === "stats") && (
+            <TabsContent value="stats" className="space-y-6">
+              <StatsTab />
+            </TabsContent>
+          )}
+          {visibleTabs.some((t) => t.value === "kanban") && (
+            <TabsContent value="kanban" className="space-y-6">
+              <KanbanTab />
+            </TabsContent>
+          )}
+          {visibleTabs.some((t) => t.value === "tags") && (
+            <TabsContent value="tags" className="space-y-6">
+              <TagsManagementTab />
+            </TabsContent>
+          )}
+          {visibleTabs.some((t) => t.value === "sospechosos") && (
+            <TabsContent value="sospechosos" className="space-y-6">
+              <SuspiciousDevicesTab />
+            </TabsContent>
+          )}
           <TabsContent value="enlaces" className="space-y-6">
             <GenerateLinkTab />
           </TabsContent>
         </div>
       </div>
 
-      {/* Barra de navegación inferior: solo en mobile, estilo app nativa */}
+      {/* Barra de navegación inferior: solo en mobile, estilo app nativa (oculta si solo hay 1 pestaña visible) */}
       <nav
+        hidden={visibleTabs.length <= 1}
         className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="grid grid-cols-5">
-          {TABS.map(({ value, shortLabel, icon: Icon }) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}>
+          {visibleTabs.map(({ value, shortLabel, icon: Icon }) => {
             const isActive = activeTab === value;
             return (
               <button

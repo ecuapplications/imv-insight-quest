@@ -9,7 +9,7 @@ if ($method === 'GET') {
     json_ok($stmt->fetchAll());
 }
 
-require_auth();
+require_admin();
 
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];

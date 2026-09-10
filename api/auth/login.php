@@ -13,7 +13,7 @@ if ($email === '' || $password === '') {
     json_error('Email y contraseña son requeridos', 400);
 }
 
-$stmt = get_db()->prepare('SELECT id, email, password_hash FROM admins WHERE email = :email');
+$stmt = get_db()->prepare('SELECT id, email, password_hash, role FROM admins WHERE email = :email');
 $stmt->execute(['email' => $email]);
 $admin = $stmt->fetch();
 
@@ -25,7 +25,8 @@ $config = require __DIR__ . '/../config.php';
 $token = jwt_encode([
     'sub' => $admin['id'],
     'email' => $admin['email'],
+    'role' => $admin['role'],
     'exp' => time() + $config['jwt_ttl_seconds'],
 ], $config['jwt_secret']);
 
-json_ok(['token' => $token, 'email' => $admin['email']]);
+json_ok(['token' => $token, 'email' => $admin['email'], 'role' => $admin['role']]);

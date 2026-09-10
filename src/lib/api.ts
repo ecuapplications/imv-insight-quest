@@ -1,5 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 const TOKEN_KEY = "admin_token";
+const ROLE_KEY = "admin_role";
+
+export type AdminRole = "admin" | "recepcion";
 
 export type ApiResult<T> = { data: T | null; error: string | null };
 
@@ -13,6 +16,18 @@ export function setToken(token: string | null) {
   } else {
     localStorage.removeItem(TOKEN_KEY);
   }
+}
+
+export function setRole(role: string | null) {
+  if (role) {
+    localStorage.setItem(ROLE_KEY, role);
+  } else {
+    localStorage.removeItem(ROLE_KEY);
+  }
+}
+
+export function getRole(): AdminRole {
+  return localStorage.getItem(ROLE_KEY) === "recepcion" ? "recepcion" : "admin";
 }
 
 export function isAuthenticated(): boolean {
@@ -53,15 +68,19 @@ export const api = {
 export async function login(
   email: string,
   password: string
-): Promise<ApiResult<{ token: string; email: string }>> {
-  const result = await api.post<{ token: string; email: string }>("/auth/login.php", {
-    email,
-    password,
-  });
-  if (result.data) setToken(result.data.token);
+): Promise<ApiResult<{ token: string; email: string; role: AdminRole }>> {
+  const result = await api.post<{ token: string; email: string; role: AdminRole }>(
+    "/auth/login.php",
+    { email, password }
+  );
+  if (result.data) {
+    setToken(result.data.token);
+    setRole(result.data.role);
+  }
   return result;
 }
 
 export function logout() {
   setToken(null);
+  setRole(null);
 }

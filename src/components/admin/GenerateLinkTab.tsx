@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Link2, MessageCircle, QrCode, Copy } from "lucide-react";
+import { Link2, MessageCircle, QrCode, Copy, CheckCircle2, MessageSquarePlus } from "lucide-react";
 import PeriodFilter from "./PeriodFilter";
 import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
 import {
@@ -30,15 +30,23 @@ type Visita = {
   device_id: string | null;
   ip_address: string | null;
   visitado_en: string;
+  respondido: boolean;
+};
+
+type ComentarioAdicional = {
+  comentario: string;
+  creado_en: string;
 };
 
 type Enlace = {
   codigo: string;
   nombre_paciente: string | null;
+  apellido_paciente: string | null;
   telefono: string | null;
   creado_en: string;
   usado_en: string | null;
   visitas: Visita[];
+  comentarios_adicionales: ComentarioAdicional[];
 };
 
 const PAISES = [
@@ -74,6 +82,7 @@ const GenerateLinkTab = () => {
   const [nuevoEnlace, setNuevoEnlace] = useState<{ codigo: string; url: string; nombre: string } | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [nombrePaciente, setNombrePaciente] = useState("");
+  const [apellidoPaciente, setApellidoPaciente] = useState("");
   const [paisCodigo, setPaisCodigo] = useState("593");
   const [telefono, setTelefono] = useState("");
   const [range, setRange] = useState<PeriodRange>(null);
@@ -103,11 +112,12 @@ const GenerateLinkTab = () => {
   );
 
   const numeroLimpio = telefono.replace(/[^0-9]/g, "");
-  const puedeGenerar = nombrePaciente.trim() !== "" && numeroLimpio !== "";
+  const puedeGenerar =
+    nombrePaciente.trim() !== "" && apellidoPaciente.trim() !== "" && numeroLimpio !== "";
 
   const handleGenerate = async () => {
     if (!puedeGenerar) {
-      toast.error("El nombre y el número de WhatsApp del paciente son obligatorios");
+      toast.error("El nombre, el apellido y el número de WhatsApp del paciente son obligatorios");
       return;
     }
     setGenerating(true);
@@ -115,6 +125,7 @@ const GenerateLinkTab = () => {
       const numeroCompleto = `${paisCodigo}${numeroLimpio}`;
       const { data, error } = await api.post<{ codigo: string; url: string }>("/enlaces.php", {
         nombre_paciente: nombrePaciente.trim(),
+        apellido_paciente: apellidoPaciente.trim(),
         telefono: numeroCompleto,
       });
       if (error || !data) throw new Error(error ?? "Error desconocido");
@@ -123,6 +134,7 @@ const GenerateLinkTab = () => {
       setNuevoEnlace({ codigo: data.codigo, url: urlCompleta, nombre: nombrePaciente.trim() });
       setQrDataUrl(qr);
       setNombrePaciente("");
+      setApellidoPaciente("");
       setTelefono("");
       fetchEnlaces();
     } catch (error) {
@@ -162,11 +174,18 @@ const GenerateLinkTab = () => {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            placeholder="Nombre del paciente (obligatorio)"
-            value={nombrePaciente}
-            onChange={(e) => setNombrePaciente(e.target.value)}
-          />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              placeholder="Nombre del paciente (obligatorio)"
+              value={nombrePaciente}
+              onChange={(e) => setNombrePaciente(e.target.value)}
+            />
+            <Input
+              placeholder="Apellido del paciente (obligatorio, solo visible para administradores)"
+              value={apellidoPaciente}
+              onChange={(e) => setApellidoPaciente(e.target.value)}
+            />
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-2">
             <Select value={paisCodigo} onValueChange={setPaisCodigo}>
@@ -249,7 +268,11 @@ const GenerateLinkTab = () => {
                 <AccordionItem key={e.codigo} value={e.codigo}>
                   <AccordionTrigger className="text-sm">
                     <div className="flex flex-wrap items-center gap-2 text-left">
-                      <span className="font-medium">{e.nombre_paciente ?? "(sin nombre)"}</span>
+                      <span className="font-medium">
+                        {e.nombre_paciente
+                          ? `${e.nombre_paciente} ${e.apellido_paciente ?? ""}`.trim()
+                          : "(sin nombre)"}
+                      </span>
                       <span className="text-muted-foreground text-xs">{e.telefono ?? "—"}</span>
                       <span className="text-muted-foreground text-xs font-mono">{e.codigo}</span>
                       {e.usado_en ? (
@@ -258,6 +281,12 @@ const GenerateLinkTab = () => {
                         <Badge variant="outline">Sin responder</Badge>
                       )}
                       <Badge variant="outline">{e.visitas.length} apertura{e.visitas.length === 1 ? "" : "s"}</Badge>
+                      {e.comentarios_adicionales.length > 0 && (
+                        <Badge variant="outline" className="gap-1">
+                          <MessageSquarePlus className="h-3 w-3" />
+                          {e.comentarios_adicionales.length} comentario{e.comentarios_adicionales.length === 1 ? "" : "s"} adicional{e.comentarios_adicionales.length === 1 ? "" : "es"}
+                        </Badge>
+                      )}
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
@@ -270,9 +299,35 @@ const GenerateLinkTab = () => {
                     ) : (
                       <div className="space-y-1">
                         {e.visitas.map((v, i) => (
-                          <div key={i} className="text-xs border-l-2 border-cyan-400 pl-3 py-1">
-                            {new Date(v.visitado_en).toLocaleString("es-EC")} · IP: {v.ip_address ?? "—"} ·
-                            Dispositivo: {v.device_id ? `${v.device_id.slice(0, 8)}...` : "—"}
+                          <div
+                            key={i}
+                            className={`text-xs border-l-2 pl-3 py-1 flex items-center gap-1.5 ${
+                              v.respondido ? "border-green-500" : "border-cyan-400"
+                            }`}
+                          >
+                            {v.respondido && (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                            )}
+                            <span>
+                              {new Date(v.visitado_en).toLocaleString("es-EC")} · IP: {v.ip_address ?? "—"} ·
+                              Dispositivo: {v.device_id ? `${v.device_id.slice(0, 8)}...` : "—"}
+                              {v.respondido && " · Esta apertura generó la respuesta"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {e.comentarios_adicionales.length > 0 && (
+                      <div className="mt-3 pt-2 border-t space-y-1.5">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <MessageSquarePlus className="h-3.5 w-3.5" /> Comentarios adicionales
+                        </p>
+                        {e.comentarios_adicionales.map((c, i) => (
+                          <div key={i} className="text-xs bg-muted/40 rounded p-2">
+                            <p className="text-muted-foreground">
+                              {new Date(c.creado_en).toLocaleString("es-EC")}
+                            </p>
+                            <p className="whitespace-pre-wrap">{c.comentario}</p>
                           </div>
                         ))}
                       </div>

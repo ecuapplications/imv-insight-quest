@@ -88,6 +88,29 @@ if ($method === 'POST') {
         if ($enlaceId) {
             $db->prepare('UPDATE enlaces_encuesta SET usado_en = now(), encuesta_id = :encuesta_id WHERE id = :id')
                ->execute(['encuesta_id' => $nuevaEncuestaId, 'id' => $enlaceId]);
+
+            // Marca cuál apertura específica del enlace resultó en esta respuesta:
+            // primero intenta la más reciente del mismo dispositivo, y si no hay
+            // coincidencia (device_id ausente o distinto), la apertura más reciente.
+            $stmt = $db->prepare(
+                'UPDATE enlace_visitas SET respondido = true
+                 WHERE id = (
+                   SELECT id FROM enlace_visitas
+                   WHERE enlace_id = :enlace_id AND device_id = :device_id
+                   ORDER BY visitado_en DESC LIMIT 1
+                 )'
+            );
+            $stmt->execute(['enlace_id' => $enlaceId, 'device_id' => $deviceId]);
+            if ($stmt->rowCount() === 0) {
+                $db->prepare(
+                    'UPDATE enlace_visitas SET respondido = true
+                     WHERE id = (
+                       SELECT id FROM enlace_visitas
+                       WHERE enlace_id = :enlace_id
+                       ORDER BY visitado_en DESC LIMIT 1
+                     )'
+                )->execute(['enlace_id' => $enlaceId]);
+            }
         }
 
         json_ok(['id' => $nuevaEncuestaId]);
@@ -96,23 +119,26 @@ if ($method === 'POST') {
     }
 }
 
-require_auth();
+require_admin();
 
 if ($method === 'GET') {
-    $sql = 'SELECT id, fecha_creacion, pregunta1_amabilidad, pregunta2_tiempo_espera, pregunta3_resolucion_dudas, pregunta4_limpieza, pregunta5_calificacion_general, comentario, estado_kanban, etiquetas, notas_internas FROM encuestas';
+    $sql = 'SELECT en.id, en.fecha_creacion, en.pregunta1_amabilidad, en.pregunta2_tiempo_espera, en.pregunta3_resolucion_dudas, en.pregunta4_limpieza, en.pregunta5_calificacion_general, en.comentario, en.estado_kanban, en.etiquetas, en.notas_internas,
+                  el.nombre_paciente, el.apellido_paciente, el.telefono
+             FROM encuestas en
+             LEFT JOIN enlaces_encuesta el ON el.encuesta_id = en.id';
     $conditions = [];
     $params = [];
     if (!empty($_GET['since'])) {
-        $conditions[] = 'fecha_creacion >= :since';
+        $conditions[] = 'en.fecha_creacion >= :since';
         $params['since'] = $_GET['since'];
     }
     if (!empty($_GET['with_comment'])) {
-        $conditions[] = 'comentario IS NOT NULL';
+        $conditions[] = 'en.comentario IS NOT NULL';
     }
     if ($conditions) {
         $sql .= ' WHERE ' . implode(' AND ', $conditions);
     }
-    $sql .= ' ORDER BY fecha_creacion DESC';
+    $sql .= ' ORDER BY en.fecha_creacion DESC';
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();

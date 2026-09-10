@@ -31,6 +31,16 @@ function require_auth(): array {
     return $payload;
 }
 
+// Igual que require_auth(), pero además exige rol 'admin'. El rol 'recepcion'
+// solo tiene acceso a la generación/consulta de enlaces (api/enlaces.php).
+function require_admin(): array {
+    $payload = require_auth();
+    if (($payload['role'] ?? 'admin') !== 'admin') {
+        json_error('No autorizado', 403);
+    }
+    return $payload;
+}
+
 function apply_cors(): void {
     $config = require __DIR__ . '/../config.php';
     if (!empty($config['cors_origin'])) {

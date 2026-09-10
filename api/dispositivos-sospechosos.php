@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/bootstrap.php';
-require_auth();
+require_admin();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_error('Método no permitido', 405);

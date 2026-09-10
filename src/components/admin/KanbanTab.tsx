@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import CommentModal from "./CommentModal";
-import { Filter, MoveRight, ListChecks, Search } from "lucide-react";
+import { Filter, MoveRight, ListChecks, Search, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -35,6 +35,9 @@ type Encuesta = {
   pregunta4_limpieza: string;
   pregunta5_calificacion_general: string;
   notas_internas: string | null;
+  nombre_paciente?: string | null;
+  apellido_paciente?: string | null;
+  telefono?: string | null;
   tarea?: {
     responsable_nombre: string;
     fecha_vencimiento: string;
@@ -321,6 +324,19 @@ const KanbanTab = () => {
                           </DropdownMenu>
                         </Tooltip>
                       </TooltipProvider>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-[hsl(var(--imv-gray))]">
+                        <User className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">
+                          {encuesta.nombre_paciente
+                            ? `${encuesta.nombre_paciente} ${encuesta.apellido_paciente ?? ""}`.trim()
+                            : "Anónimo"}
+                        </span>
+                        {encuesta.telefono && (
+                          <span className="text-[10px] text-[hsl(var(--imv-gray))]/80 shrink-0">
+                            · {encuesta.telefono}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm line-clamp-3 pr-8">{encuesta.comentario}</p>
                       <div className="flex flex-wrap gap-1">
                         {encuesta.etiquetas?.map((tag) => <Badge key={tag} variant="secondary" className="text-xs bg-gradient-to-r from-[hsl(var(--imv-cyan)/0.2)] to-[hsl(var(--imv-purple)/0.2)]">{tag}</Badge>)}

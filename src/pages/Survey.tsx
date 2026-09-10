@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { getDeviceId, hasSubmittedToday, markSubmittedToday } from "@/lib/deviceId";
-import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown, MessageSquareHeart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown, MessageSquareHeart, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Answers = {
@@ -35,6 +35,9 @@ const Survey = () => {
   const [alreadyToday, setAlreadyToday] = useState(() => !codigo && hasSubmittedToday());
   const [linkAlreadyUsed, setLinkAlreadyUsed] = useState(false);
   const [nombrePaciente, setNombrePaciente] = useState<string | null>(null);
+  const [comentarioAdicional, setComentarioAdicional] = useState("");
+  const [comentarioAdicionalEnviado, setComentarioAdicionalEnviado] = useState(false);
+  const [enviandoComentarioAdicional, setEnviandoComentarioAdicional] = useState(false);
 
   useEffect(() => {
     if (codigo) {
@@ -42,14 +45,36 @@ const Survey = () => {
         console.error("Error logging link visit:", error);
       });
       api
-        .get<{ nombre_paciente: string | null }>(`/enlaces.php?codigo=${encodeURIComponent(codigo)}`)
+        .get<{ nombre_paciente: string | null; usado: boolean }>(
+          `/enlaces.php?codigo=${encodeURIComponent(codigo)}`
+        )
         .then(({ data }) => {
           if (data?.nombre_paciente) setNombrePaciente(data.nombre_paciente);
+          if (data?.usado) setLinkAlreadyUsed(true);
         })
         .catch((error) => console.error("Error fetching patient name:", error));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleEnviarComentarioAdicional = async () => {
+    if (!codigo || comentarioAdicional.trim() === "") return;
+    setEnviandoComentarioAdicional(true);
+    try {
+      const { error } = await api.post("/enlace-comentario.php", {
+        codigo,
+        comentario: comentarioAdicional.trim(),
+        device_id: getDeviceId(),
+      });
+      if (error) throw new Error(error);
+      setComentarioAdicionalEnviado(true);
+    } catch (error) {
+      console.error("Error submitting additional comment:", error);
+      toast.error("No se pudo enviar tu comentario. Por favor, intenta nuevamente.");
+    } finally {
+      setEnviandoComentarioAdicional(false);
+    }
+  };
 
   const primerNombre = nombrePaciente?.trim().split(/\s+/)[0] ?? null;
 
@@ -160,18 +185,49 @@ const Survey = () => {
           <div className="space-y-4">
             <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] bg-clip-text text-transparent">
               {linkAlreadyUsed
-                ? "Enlace ya utilizado"
+                ? `Ya recibimos tu respuesta${primerNombre ? `, ${primerNombre}` : ""}`
                 : `¡Gracias${primerNombre && currentStep === totalSteps ? `, ${primerNombre}` : ""}!`}
             </h1>
             <p className="text-xl text-[hsl(var(--survey-text-light))] opacity-90">
               {linkAlreadyUsed
-                ? "Este enlace ya fue utilizado para responder la encuesta. Si crees que esto es un error, contacta a recepción."
+                ? "Este enlace ya fue utilizado para responder la encuesta. Gracias por tu participación."
                 : alreadyToday
                   ? "Ya registraste tu opinión hoy. ¡Gracias por tu participación!"
                   : "Su opinión es muy importante para nosotros y nos ayuda a mejorar continuamente nuestros servicios."}
             </p>
           </div>
-          {!linkAlreadyUsed && (
+
+          {linkAlreadyUsed ? (
+            <div className="pt-4 max-w-xl mx-auto text-left space-y-4">
+              {comentarioAdicionalEnviado ? (
+                <p className="flex items-center justify-center gap-2 text-lg text-[hsl(var(--survey-text-light))]">
+                  <CheckCircle2 className="h-6 w-6 text-green-400 shrink-0" />
+                  ¡Gracias por tu comentario adicional!
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-[hsl(var(--survey-text-light))] opacity-90 text-center">
+                    Si deseas, puedes dejarnos un comentario adicional:
+                  </p>
+                  <Textarea
+                    value={comentarioAdicional}
+                    onChange={(e) => setComentarioAdicional(e.target.value)}
+                    placeholder="Escribe tu comentario aquí..."
+                    className="min-h-[120px] bg-white/5 border-white/20 text-[hsl(var(--survey-text-light))] placeholder:text-[hsl(var(--survey-text))]"
+                  />
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={handleEnviarComentarioAdicional}
+                      disabled={enviandoComentarioAdicional || comentarioAdicional.trim() === ""}
+                      className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black font-semibold px-8 hover:opacity-90 transition-opacity disabled:opacity-30"
+                    >
+                      {enviandoComentarioAdicional ? "Enviando..." : "Enviar comentario"} <Send className="ml-2 h-5 w-5" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
             <div className="pt-8">
               <Button onClick={() => window.location.reload()} className="bg-gradient-to-r from-[hsl(var(--imv-cyan))] to-[hsl(var(--imv-purple))] text-black font-semibold px-8 py-6 text-lg hover:opacity-90 transition-opacity">
                 Volver al inicio

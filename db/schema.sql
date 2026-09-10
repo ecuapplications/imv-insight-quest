@@ -86,6 +86,7 @@ CREATE TABLE public.admins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'recepcion')),
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
@@ -93,6 +94,7 @@ CREATE TABLE public.enlaces_encuesta (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   codigo TEXT NOT NULL UNIQUE,
   nombre_paciente TEXT,
+  apellido_paciente TEXT,
   telefono TEXT,
   creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   usado_en TIMESTAMP WITH TIME ZONE,
@@ -106,7 +108,19 @@ CREATE TABLE public.enlace_visitas (
   enlace_id UUID NOT NULL REFERENCES public.enlaces_encuesta(id) ON DELETE CASCADE,
   device_id UUID,
   ip_address INET,
-  visitado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+  visitado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  respondido BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX idx_enlace_visitas_enlace_id ON public.enlace_visitas(enlace_id);
+
+CREATE TABLE public.enlace_comentarios_adicionales (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enlace_id UUID NOT NULL REFERENCES public.enlaces_encuesta(id) ON DELETE CASCADE,
+  comentario TEXT NOT NULL,
+  device_id UUID,
+  ip_address INET,
+  creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_enlace_comentarios_enlace_id ON public.enlace_comentarios_adicionales(enlace_id);

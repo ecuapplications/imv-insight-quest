@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/bootstrap.php';
-require_auth();
+require_admin();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $db = get_db();
