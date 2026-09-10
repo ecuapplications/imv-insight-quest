@@ -21,6 +21,14 @@ CREATE INDEX idx_encuestas_fecha_creacion ON public.encuestas(fecha_creacion DES
 CREATE INDEX idx_encuestas_estado_kanban ON public.encuestas(estado_kanban);
 CREATE INDEX idx_encuestas_etiquetas ON public.encuestas USING GIN(etiquetas);
 
+ALTER TABLE public.encuestas
+  ADD COLUMN device_id UUID,
+  ADD COLUMN ip_address INET;
+
+CREATE INDEX idx_encuestas_device_id ON public.encuestas(device_id);
+CREATE INDEX idx_encuestas_device_fecha ON public.encuestas(device_id, fecha_creacion);
+CREATE INDEX idx_encuestas_ip_fecha ON public.encuestas(ip_address, fecha_creacion);
+
 CREATE TABLE public.responsables (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   nombre TEXT NOT NULL,
@@ -80,3 +88,13 @@ CREATE TABLE public.admins (
   password_hash TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+CREATE TABLE public.enlaces_encuesta (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  codigo TEXT NOT NULL UNIQUE,
+  creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  usado_en TIMESTAMP WITH TIME ZONE,
+  encuesta_id UUID REFERENCES public.encuestas(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_enlaces_codigo ON public.enlaces_encuesta(codigo);
