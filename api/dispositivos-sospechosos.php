@@ -30,28 +30,39 @@ unset($row);
 // Un mismo dispositivo respondiendo el enlace de más de un paciente distinto
 // es una señal fuerte de que alguien está completando encuestas por otros
 // (o reutilizando su propio celular para varios pacientes).
-$stmtEnlaces = $db->query(
-    "SELECT en.device_id, count(DISTINCT el.id) AS total_enlaces,
-            json_agg(json_build_object(
-                       'codigo', el.codigo,
-                       'nombre_paciente', el.nombre_paciente,
-                       'apellido_paciente', el.apellido_paciente,
-                       'telefono', el.telefono,
-                       'encuesta_id', en.id,
-                       'fecha_creacion', en.fecha_creacion
-                     ) ORDER BY en.fecha_creacion DESC) AS enlaces
-     FROM encuestas en
-     JOIN enlaces_encuesta el ON el.encuesta_id = en.id
-     WHERE en.device_id IS NOT NULL
-     GROUP BY en.device_id
-     HAVING count(DISTINCT el.id) > 1
-     ORDER BY total_enlaces DESC"
-);
-$enlacesMultiPaciente = $stmtEnlaces->fetchAll();
-foreach ($enlacesMultiPaciente as &$row) {
-    $row['enlaces'] = json_decode($row['enlaces'], true);
-    $row['total_enlaces'] = (int) $row['total_enlaces'];
+//
+// Envuelto en try/catch: esta consulta depende de columnas agregadas en la
+// migración de la Fase 9 (apellido_paciente). Si esa migración todavía no se
+// aplicó en este entorno, no queremos que un error acá tumbe también la
+// sección de "Dispositivos Sospechosos" de arriba, que no depende de ella.
+$enlacesMultiPaciente = [];
+try {
+    $stmtEnlaces = $db->query(
+        "SELECT en.device_id, count(DISTINCT el.id) AS total_enlaces,
+                json_agg(json_build_object(
+                           'codigo', el.codigo,
+                           'nombre_paciente', el.nombre_paciente,
+                           'apellido_paciente', el.apellido_paciente,
+                           'telefono', el.telefono,
+                           'encuesta_id', en.id,
+                           'fecha_creacion', en.fecha_creacion
+                         ) ORDER BY en.fecha_creacion DESC) AS enlaces
+         FROM encuestas en
+         JOIN enlaces_encuesta el ON el.encuesta_id = en.id
+         WHERE en.device_id IS NOT NULL
+         GROUP BY en.device_id
+         HAVING count(DISTINCT el.id) > 1
+         ORDER BY total_enlaces DESC"
+    );
+    $enlacesMultiPaciente = $stmtEnlaces->fetchAll();
+    foreach ($enlacesMultiPaciente as &$row) {
+        $row['enlaces'] = json_decode($row['enlaces'], true);
+        $row['total_enlaces'] = (int) $row['total_enlaces'];
+    }
+    unset($row);
+} catch (PDOException $e) {
+    error_log('dispositivos-sospechosos.php: fallo la consulta de enlaces_multi_paciente: ' . $e->getMessage());
+    $enlacesMultiPaciente = [];
 }
-unset($row);
 
 json_ok(['dispositivos' => $rows, 'enlaces_multi_paciente' => $enlacesMultiPaciente]);

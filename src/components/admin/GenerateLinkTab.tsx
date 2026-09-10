@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Link2, MessageCircle, QrCode, Copy, CheckCircle2, MessageSquarePlus } from "lucide-react";
 import PeriodFilter from "./PeriodFilter";
 import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
+import { normalizeLocalNumber, parsePastedPhone } from "@/lib/phone";
 import {
   EC, CO, PE, US, ES, MX, CL, AR, VE, BO, PY, UY, CR, PA, GT, SV, HN, NI,
 } from "country-flag-icons/react/3x2";
@@ -75,11 +76,25 @@ const PAISES = [
 // generados incluyan ese prefijo también.
 const BASE_PATH = (import.meta.env.VITE_BASE_PATH as string | undefined) || "";
 
+const PAISES_CODES = [
+  "593", "57", "51", "1", "34", "52", "56", "54", "58", "591", "595", "598", "506", "507", "502", "503", "504", "505",
+];
+
+const buildEnlaceUrl = (codigo: string) => `${window.location.origin}${BASE_PATH}/s/${codigo}`;
+
+const buildMensaje = (nombre: string | null, url: string) =>
+  `Hola${nombre ? ` ${nombre}` : ""}, gracias por tu visita a IMV Health Digestive. Nos ayudaría mucho que respondas esta breve encuesta de satisfacción: ${url}`;
+
 const GenerateLinkTab = () => {
   const [enlaces, setEnlaces] = useState<Enlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [nuevoEnlace, setNuevoEnlace] = useState<{ codigo: string; url: string; nombre: string } | null>(null);
+  const [nuevoEnlace, setNuevoEnlace] = useState<{
+    codigo: string;
+    url: string;
+    nombre: string;
+    telefonoCompleto: string;
+  } | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [nombrePaciente, setNombrePaciente] = useState("");
   const [apellidoPaciente, setApellidoPaciente] = useState("");
@@ -111,9 +126,18 @@ const GenerateLinkTab = () => {
     [enlaces, range],
   );
 
-  const numeroLimpio = telefono.replace(/[^0-9]/g, "");
+  const numeroLimpio = normalizeLocalNumber(telefono);
   const puedeGenerar =
     nombrePaciente.trim() !== "" && apellidoPaciente.trim() !== "" && numeroLimpio !== "";
+
+  const handleTelefonoPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    const parsed = parsePastedPhone(pasted, PAISES_CODES);
+    if (parsed.localNumber === "") return;
+    e.preventDefault();
+    if (parsed.countryCode) setPaisCodigo(parsed.countryCode);
+    setTelefono(parsed.localNumber);
+  };
 
   const handleGenerate = async () => {
     if (!puedeGenerar) {
@@ -131,7 +155,12 @@ const GenerateLinkTab = () => {
       if (error || !data) throw new Error(error ?? "Error desconocido");
       const urlCompleta = `${window.location.origin}${BASE_PATH}${data.url}`;
       const qr = await QRCode.toDataURL(urlCompleta);
-      setNuevoEnlace({ codigo: data.codigo, url: urlCompleta, nombre: nombrePaciente.trim() });
+      setNuevoEnlace({
+        codigo: data.codigo,
+        url: urlCompleta,
+        nombre: nombrePaciente.trim(),
+        telefonoCompleto: numeroCompleto,
+      });
       setQrDataUrl(qr);
       setNombrePaciente("");
       setApellidoPaciente("");
@@ -145,14 +174,34 @@ const GenerateLinkTab = () => {
     }
   };
 
-  const mensajeWhatsapp = nuevoEnlace
-    ? `Hola ${nuevoEnlace.nombre}, gracias por tu visita a IMV Health Digestive. Nos ayudaría mucho que respondas esta breve encuesta de satisfacción: ${nuevoEnlace.url}`
+  const mensajeWhatsapp = nuevoEnlace ? buildMensaje(nuevoEnlace.nombre, nuevoEnlace.url) : "";
+  const whatsappHref = nuevoEnlace
+    ? `https://wa.me/${nuevoEnlace.telefonoCompleto}?text=${encodeURIComponent(mensajeWhatsapp)}`
     : "";
-  const whatsappHref = `https://wa.me/${paisCodigo}${numeroLimpio}?text=${encodeURIComponent(mensajeWhatsapp)}`;
 
   const handleCopyMessage = async () => {
     try {
       await navigator.clipboard.writeText(mensajeWhatsapp);
+      toast.success("Mensaje copiado al portapapeles");
+    } catch (error) {
+      console.error("Error copying message:", error);
+      toast.error("No se pudo copiar el mensaje");
+    }
+  };
+
+  const handleReenviarWhatsapp = (e: Enlace) => {
+    if (!e.telefono) {
+      toast.error("Este enlace no tiene un número de teléfono registrado");
+      return;
+    }
+    const mensaje = buildMensaje(e.nombre_paciente, buildEnlaceUrl(e.codigo));
+    window.open(`https://wa.me/${e.telefono}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCopiarMensajeEnlace = async (e: Enlace) => {
+    try {
+      const mensaje = buildMensaje(e.nombre_paciente, buildEnlaceUrl(e.codigo));
+      await navigator.clipboard.writeText(mensaje);
       toast.success("Mensaje copiado al portapapeles");
     } catch (error) {
       console.error("Error copying message:", error);
@@ -207,8 +256,14 @@ const GenerateLinkTab = () => {
               placeholder="Número de WhatsApp del paciente (obligatorio, sin el código de país)"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
+              onPaste={handleTelefonoPaste}
+              inputMode="tel"
             />
           </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Puedes pegar el número tal cual lo copiaste (con +593, espacios, guiones o el 0 inicial) — se
+            normaliza automáticamente.
+          </p>
 
           <Button onClick={handleGenerate} disabled={generating || !puedeGenerar}>
             {generating ? "Generando..." : "Generar nuevo enlace"}
@@ -294,6 +349,20 @@ const GenerateLinkTab = () => {
                       Generado: {new Date(e.creado_en).toLocaleString("es-EC")}
                       {e.usado_en && ` · Respondido: ${new Date(e.usado_en).toLocaleString("es-EC")}`}
                     </p>
+                    <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleReenviarWhatsapp(e)}
+                      >
+                        <MessageCircle className="mr-2 h-3.5 w-3.5" />
+                        Reenviar por WhatsApp
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleCopiarMensajeEnlace(e)}>
+                        <Copy className="mr-2 h-3.5 w-3.5" />
+                        Copiar mensaje
+                      </Button>
+                    </div>
                     {e.visitas.length === 0 ? (
                       <p className="text-xs text-muted-foreground">Aún no se ha abierto.</p>
                     ) : (
