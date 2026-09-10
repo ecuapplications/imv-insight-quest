@@ -19,10 +19,10 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Link2, MessageCircle, QrCode, Copy, CheckCircle2, MessageSquarePlus } from "lucide-react";
+import { Link2, MessageCircle, QrCode, Copy, CheckCircle2, MessageSquarePlus, ClipboardPaste } from "lucide-react";
 import PeriodFilter from "./PeriodFilter";
 import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
-import { normalizeLocalNumber, parsePastedPhone } from "@/lib/phone";
+import { normalizeLocalNumber, parsePastedPhone, stripToDigits } from "@/lib/phone";
 import {
   EC, CO, PE, US, ES, MX, CL, AR, VE, BO, PY, UY, CR, PA, GT, SV, HN, NI,
 } from "country-flag-icons/react/3x2";
@@ -80,6 +80,10 @@ const PAISES_CODES = [
   "593", "57", "51", "1", "34", "52", "56", "54", "58", "591", "595", "598", "506", "507", "502", "503", "504", "505",
 ];
 
+// Tope generoso para el número local (sin código de país) — suficiente para
+// cualquiera de los países soportados, evita que el campo acumule basura.
+const MAX_LOCAL_DIGITS = 13;
+
 const buildEnlaceUrl = (codigo: string) => `${window.location.origin}${BASE_PATH}/s/${codigo}`;
 
 const buildMensaje = (nombre: string | null, url: string) =>
@@ -130,13 +134,36 @@ const GenerateLinkTab = () => {
   const puedeGenerar =
     nombrePaciente.trim() !== "" && apellidoPaciente.trim() !== "" && numeroLimpio !== "";
 
+  const handleTelefonoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTelefono(stripToDigits(e.target.value).slice(0, MAX_LOCAL_DIGITS));
+  };
+
   const handleTelefonoPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    // Siempre bloqueamos el pegado nativo: el reemplazo del campo lo hacemos
+    // nosotros con el número ya normalizado, para que nunca se inserte el
+    // texto crudo en paralelo (lo que producía valores basura acumulados).
+    e.preventDefault();
     const pasted = e.clipboardData.getData("text");
     const parsed = parsePastedPhone(pasted, PAISES_CODES);
     if (parsed.localNumber === "") return;
-    e.preventDefault();
     if (parsed.countryCode) setPaisCodigo(parsed.countryCode);
-    setTelefono(parsed.localNumber);
+    setTelefono(parsed.localNumber.slice(0, MAX_LOCAL_DIGITS));
+  };
+
+  const handlePasteButtonClick = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = parsePastedPhone(text, PAISES_CODES);
+      if (parsed.localNumber === "") {
+        toast.error("El portapapeles no contiene un número reconocible");
+        return;
+      }
+      if (parsed.countryCode) setPaisCodigo(parsed.countryCode);
+      setTelefono(parsed.localNumber.slice(0, MAX_LOCAL_DIGITS));
+    } catch (error) {
+      console.error("Error reading clipboard:", error);
+      toast.error("No se pudo leer el portapapeles — pégalo manualmente");
+    }
   };
 
   const handleGenerate = async () => {
@@ -252,17 +279,30 @@ const GenerateLinkTab = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              placeholder="Número de WhatsApp del paciente (obligatorio, sin el código de país)"
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              onPaste={handleTelefonoPaste}
-              inputMode="tel"
-            />
+            <div className="flex-1 flex gap-2">
+              <Input
+                placeholder="Número de WhatsApp del paciente (obligatorio, sin el código de país)"
+                value={telefono}
+                onChange={handleTelefonoChange}
+                onPaste={handleTelefonoPaste}
+                inputMode="tel"
+                maxLength={MAX_LOCAL_DIGITS}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handlePasteButtonClick}
+                title="Pegar número desde el portapapeles"
+                className="shrink-0"
+              >
+                <ClipboardPaste className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground -mt-2">
-            Puedes pegar el número tal cual lo copiaste (con +593, espacios, guiones o el 0 inicial) — se
-            normaliza automáticamente.
+            Puedes escribir el número o pegarlo (con +593, espacios, guiones o el 0 inicial, ya sea con
+            Ctrl+V o el botón de pegar) — se normaliza automáticamente.
           </p>
 
           <Button onClick={handleGenerate} disabled={generating || !puedeGenerar}>

@@ -13,17 +13,20 @@ RewriteRule ^ - [L]
 RewriteRule ^ index.html [L]
 
 <IfModule mod_headers.c>
-  # index.html nunca debe quedar en caché (ni del navegador ni de SiteGround
-  # Dynamic Cache): cada deploy genera archivos de assets con hash distinto,
-  # y si index.html queda cacheado sigue apuntando a los archivos del deploy
-  # anterior, causando errores (404 de rutas, JS desactualizado, etc.)
-  <FilesMatch "^index\.html$">
+  # index.html, sw.js (service worker) y manifest.webmanifest nunca deben
+  # quedar en caché (ni del navegador ni de SiteGround Dynamic Cache): cada
+  # deploy genera archivos de assets con hash distinto, y si alguno de estos
+  # tres queda cacheado sigue apuntando al deploy anterior — para sw.js en
+  # particular, esto además rompería la actualización automática del service
+  # worker (el navegador nunca se enteraría de que hay una versión nueva).
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header set Pragma "no-cache"
   </FilesMatch>
-  # Los assets sí llevan hash en el nombre (index-XXXXXXXX.js), así que se
-  # pueden cachear agresivamente sin riesgo de servir una versión vieja.
-  <FilesMatch "\.(js|css|png|jpg|jpeg|svg|ico|woff2?)$">
+  # Los demás assets sí llevan hash en el nombre (index-XXXXXXXX.js), así que
+  # se pueden cachear agresivamente sin riesgo de servir una versión vieja.
+  # sw.js queda excluido a propósito (ver arriba).
+  <FilesMatch "^(?!sw\.js$).*\.(js|css|png|jpg|jpeg|svg|ico|woff2?)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 </IfModule>

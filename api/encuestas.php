@@ -35,14 +35,16 @@ if ($method === 'POST') {
     $codigoEnlace = $body['codigo_enlace'] ?? null;
 
     $enlaceId = null;
+    $nombrePacienteEnlace = null;
     if ($codigoEnlace) {
-        $stmt = $db->prepare('SELECT id, usado_en FROM enlaces_encuesta WHERE codigo = :codigo');
+        $stmt = $db->prepare('SELECT id, usado_en, nombre_paciente FROM enlaces_encuesta WHERE codigo = :codigo');
         $stmt->execute(['codigo' => $codigoEnlace]);
         $enlace = $stmt->fetch();
         if (!$enlace || $enlace['usado_en'] !== null) {
             json_error('Este enlace ya fue utilizado o no es válido.', 410);
         }
         $enlaceId = $enlace['id'];
+        $nombrePacienteEnlace = $enlace['nombre_paciente'];
     }
 
     // Rate limit por IP (siempre aplica, incluso con enlace de un solo uso)
@@ -110,6 +112,55 @@ if ($method === 'POST') {
                        ORDER BY visitado_en DESC LIMIT 1
                      )'
                 )->execute(['enlace_id' => $enlaceId]);
+            }
+
+            enqueue_push_notification($db, 'respuesta_via_enlace', [
+                'title' => 'Nueva respuesta recibida',
+                'body' => ($nombrePacienteEnlace ?: 'Un paciente') . ' respondió la encuesta',
+                'url' => '?tab=comentarios',
+            ]);
+
+            // "Enlaces de varios pacientes desde un mismo dispositivo": si este
+            // dispositivo acaba de responder el enlace de un SEGUNDO paciente
+            // distinto (mismo criterio que dispositivos-sospechosos.php), es la
+            // primera vez que cruza el umbral — se notifica solo esta vez.
+            if ($deviceId) {
+                $stmt = $db->prepare(
+                    'SELECT count(DISTINCT el.id) FROM encuestas en
+                     JOIN enlaces_encuesta el ON el.encuesta_id = en.id
+                     WHERE en.device_id = :device_id'
+                );
+                $stmt->execute(['device_id' => $deviceId]);
+                if ((int) $stmt->fetchColumn() === 2) {
+                    enqueue_push_notification($db, 'enlace_multi_paciente', [
+                        'title' => 'Alerta: mismo dispositivo, varios pacientes',
+                        'body' => 'Un dispositivo respondió los enlaces de más de un paciente',
+                        'url' => '?tab=sospechosos',
+                    ]);
+                }
+            }
+        } else {
+            enqueue_push_notification($db, 'respuesta_anonima', [
+                'title' => 'Nueva respuesta recibida',
+                'body' => 'Se recibió una nueva respuesta a la encuesta',
+                'url' => '?tab=comentarios',
+            ]);
+        }
+
+        // "Dispositivo sospechoso" (mismo criterio que dispositivos-sospechosos.php:
+        // más de 2 encuestas en 7 días): si esta es la fila que hace que el conteo
+        // pase de 2 a 3, es la primera vez que cruza el umbral.
+        if ($deviceId) {
+            $stmt = $db->prepare(
+                "SELECT count(*) FROM encuestas WHERE device_id = :device_id AND fecha_creacion >= now() - interval '7 days'"
+            );
+            $stmt->execute(['device_id' => $deviceId]);
+            if ((int) $stmt->fetchColumn() === 3) {
+                enqueue_push_notification($db, 'dispositivo_sospechoso', [
+                    'title' => 'Dispositivo sospechoso',
+                    'body' => 'Un dispositivo superó el límite de encuestas en 7 días',
+                    'url' => '?tab=sospechosos',
+                ]);
             }
         }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import ComentariosTab from "@/components/admin/ComentariosTab";
 import TagsManagementTab from "@/components/admin/TagsManagementTab";
 import SuspiciousDevicesTab from "@/components/admin/SuspiciousDevicesTab";
 import GenerateLinkTab from "@/components/admin/GenerateLinkTab";
+import NotificationBell from "@/components/admin/NotificationBell";
 import { logout, isAuthenticated, getRole } from "@/lib/api";
 
 const TABS = [
@@ -30,10 +31,17 @@ const SWIPE_THRESHOLD_PX = 60;
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const role = getRole();
   // El rol "recepcion" solo puede ver y usar la pestaña de Enlaces.
   const visibleTabs = role === "recepcion" ? TABS.filter((t) => t.value === "enlaces") : TABS;
-  const [activeTab, setActiveTab] = useState(role === "recepcion" ? "enlaces" : "comentarios");
+  const defaultTab = role === "recepcion" ? "enlaces" : "comentarios";
+  // Deep-link desde una notificación push (?tab=sospechosos, etc.) — solo si
+  // la pestaña pedida es una a la que este rol tiene acceso.
+  const requestedTab = searchParams.get("tab");
+  const initialTab =
+    requestedTab && visibleTabs.some((t) => t.value === requestedTab) ? requestedTab : defaultTab;
+  const [activeTab, setActiveTab] = useState(initialTab);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -107,6 +115,9 @@ const AdminDashboard = () => {
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            {/* Campana de notificaciones push: visible en desktop y mobile */}
+            <NotificationBell />
 
             {/* Cerrar sesión: botón completo en desktop */}
             <Button

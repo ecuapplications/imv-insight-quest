@@ -25,3 +25,8 @@ dist-ssr
 
 # PHP backend config (contains DB credentials, never commit)
 api/config.php
+
+# Dependencias de Composer — se resuelven con `composer install` a partir de
+# composer.json/composer.lock (que sí se commitean); se incluyen ya resueltas
+# en el zip de deploy, pero no en el repo.
+api/vendor/

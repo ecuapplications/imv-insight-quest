@@ -125,3 +125,33 @@ CREATE TABLE public.enlace_comentarios_adicionales (
 );
 
 CREATE INDEX idx_enlace_comentarios_enlace_id ON public.enlace_comentarios_adicionales(enlace_id);
+
+CREATE TABLE public.push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL REFERENCES public.admins(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_push_subscriptions_admin_id ON public.push_subscriptions(admin_id);
+
+-- Cola de notificaciones push: los endpoints públicos (enlace-visita.php,
+-- encuestas.php) solo insertan aquí, nunca envían el push ellos mismos —
+-- eso lo hace un script aparte disparado por cron, para no agregarle
+-- latencia a las requests de los pacientes. `tipo` determina a qué rol(es)
+-- les llega, resuelto en el script de envío (no se guarda por fila).
+CREATE TABLE public.push_notificaciones_pendientes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tipo TEXT NOT NULL CHECK (tipo IN (
+    'apertura_enlace', 'respuesta_via_enlace', 'respuesta_anonima',
+    'dispositivo_sospechoso', 'enlace_multi_paciente'
+  )),
+  payload JSONB NOT NULL,
+  creado_en TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  enviado_en TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_push_pendientes_sin_enviar
+  ON public.push_notificaciones_pendientes(creado_en) WHERE enviado_en IS NULL;
