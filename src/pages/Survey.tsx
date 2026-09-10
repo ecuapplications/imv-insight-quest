@@ -28,6 +28,8 @@ const Survey = () => {
     comentario: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  const [formLoadedAt] = useState(() => Date.now());
 
   const totalSteps = 7; // Intro + 5 questions + comment
 
@@ -102,6 +104,8 @@ const Survey = () => {
         pregunta4_limpieza: answers.pregunta4_limpieza,
         pregunta5_calificacion_general: answers.pregunta5_calificacion_general,
         comentario: answers.comentario || null,
+        sitio_web: honeypot,
+        segundos_transcurridos: Math.round((Date.now() - formLoadedAt) / 1000),
       });
       if (error) throw new Error(error);
       setCurrentStep(totalSteps);
@@ -137,6 +141,16 @@ const Survey = () => {
 
   return (
     <div className="min-h-screen bg-[hsl(var(--survey-bg))] text-[hsl(var(--survey-text))] flex flex-col">
+      <input
+        type="text"
+        name="sitio_web"
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        style={{ position: "absolute", left: "-9999px", top: "-9999px" }}
+        aria-hidden="true"
+      />
       <div className="w-full bg-black/50 p-4 space-y-2">
         <Progress value={progress} className="h-2" />
         <p className="text-center text-sm text-[hsl(var(--survey-text-light))]">

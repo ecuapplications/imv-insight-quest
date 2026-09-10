@@ -6,6 +6,19 @@ $db = get_db();
 
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    // Honeypot: un bot que autocompleta todo el formulario cae aquí. Se responde
+    // como éxito (sin insertar) para no revelar que fue detectado.
+    if (!empty($body['sitio_web'])) {
+        json_ok(['id' => null]);
+    }
+
+    // Tiempo de llenado: nadie contesta 5 preguntas + comentario en menos de 3s.
+    $segundos = $body['segundos_transcurridos'] ?? null;
+    if ($segundos !== null && $segundos < 3) {
+        json_ok(['id' => null]);
+    }
+
     $required = [
         'pregunta1_amabilidad', 'pregunta2_tiempo_espera', 'pregunta3_resolucion_dudas',
         'pregunta4_limpieza', 'pregunta5_calificacion_general',
