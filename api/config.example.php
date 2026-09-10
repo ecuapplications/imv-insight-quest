@@ -10,4 +10,6 @@ return [
     'jwt_secret' => 'CAMBIAR_POR_UN_SECRETO_LARGO_Y_ALEATORIO',
     'jwt_ttl_seconds' => 8 * 60 * 60,
     'cors_origin' => getenv('APP_ENV') === 'dev' ? 'http://localhost:8080' : null,
+    'turnstile_secret' => 'CAMBIAR_POR_EL_SECRET_KEY_DE_CLOUDFLARE',
+    'rate_limit_ip_por_hora' => 10,
 ];
