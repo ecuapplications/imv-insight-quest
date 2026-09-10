@@ -102,6 +102,7 @@ CREATE TABLE public.enlaces_encuesta (
 );
 
 CREATE INDEX idx_enlaces_codigo ON public.enlaces_encuesta(codigo);
+CREATE INDEX idx_enlaces_encuesta_id ON public.enlaces_encuesta(encuesta_id);
 
 CREATE TABLE public.enlace_visitas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
