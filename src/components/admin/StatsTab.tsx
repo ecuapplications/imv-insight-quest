@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Calendar, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import {
   Carousel,
@@ -12,8 +11,8 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-
-type FilterType = "day" | "week" | "month" | "year";
+import PeriodFilter from "./PeriodFilter";
+import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
 
 type EncuestaData = {
   pregunta1_amabilidad: string;
@@ -41,33 +40,23 @@ const chartDetails = [
 ];
 
 const StatsTab = () => {
-  const [filter, setFilter] = useState<FilterType>("month");
-  const [responses, setResponses] = useState<EncuestaData[]>([]);
+  const [allResponses, setAllResponses] = useState<EncuestaData[]>([]);
+  const [range, setRange] = useState<PeriodRange>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchResponses();
-  }, [filter]);
+  }, []);
 
   const fetchResponses = async () => {
     setLoading(true);
     try {
-      const now = new Date();
-      let startDate = new Date();
-      switch (filter) {
-        case "day": startDate.setHours(0, 0, 0, 0); break;
-        case "week": startDate.setDate(now.getDate() - 7); break;
-        case "month": startDate.setMonth(now.getMonth() - 1); break;
-        case "year": startDate.setFullYear(now.getFullYear() - 1); break;
-      }
-      const { data, error } = await api.get<EncuestaData[]>(
-        `/encuestas.php?since=${encodeURIComponent(startDate.toISOString())}`
-      );
+      const { data, error } = await api.get<EncuestaData[]>("/encuestas.php");
       if (error) {
         toast.error("Debe iniciar sesión para ver las estadísticas");
         return;
       }
-      setResponses(data || []);
+      setAllResponses(data || []);
     } catch (error) {
       console.error("Error fetching responses:", error);
       toast.error("Error al cargar las estadísticas");
@@ -75,6 +64,16 @@ const StatsTab = () => {
       setLoading(false);
     }
   };
+
+  const availableDates = useMemo(
+    () => allResponses.map((r) => new Date(r.fecha_creacion)),
+    [allResponses],
+  );
+
+  const responses = useMemo(
+    () => allResponses.filter((r) => isWithinRange(new Date(r.fecha_creacion), range)),
+    [allResponses, range],
+  );
 
   const getChartData = (key: keyof EncuestaData) => {
     const counts: Record<string, number> = {};
@@ -122,32 +121,16 @@ const StatsTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* --- CAMBIO AQUÍ: Contenedor Flex para las dos tarjetas superiores --- */}
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Filtro (70% del ancho en pantallas grandes) */}
         <Card className="shadow-md w-full lg:w-[70%]">
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-[hsl(var(--imv-cyan))]" />
-                <span className="font-medium">Filtrar por período:</span>
-              </div>
-              <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Día</SelectItem>
-                  <SelectItem value="week">Semana</SelectItem>
-                  <SelectItem value="month">Mes</SelectItem>
-                  <SelectItem value="year">Año</SelectItem>
-                </SelectContent>
-              </Select>
+              <span className="font-medium">Filtrar por período:</span>
+              <PeriodFilter dates={availableDates} onChange={setRange} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Total de Respuestas (30% del ancho en pantallas grandes) */}
         <Card className="shadow-md bg-gradient-to-r from-[hsl(var(--imv-cyan)/0.1)] to-[hsl(var(--imv-purple)/0.1)] w-full lg:w-[30%]">
           <CardContent className="pt-6 flex flex-col justify-center h-full">
             <div className="flex items-center justify-between">

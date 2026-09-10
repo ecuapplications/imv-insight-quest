@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import CommentModal from "./CommentModal";
 import { Filter, MoveRight, ListChecks, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +19,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import PeriodFilter from "./PeriodFilter";
+import { isWithinRange, type PeriodRange } from "@/lib/dateFilter";
+import { ESTADOS, getEstadoLabel, getEstadoIcon } from "@/lib/estadoKanban";
 
 type Encuesta = {
   id: string;
@@ -40,14 +42,6 @@ type Encuesta = {
   } | null;
 };
 
-const ESTADOS = [
-  "Bandeja de Entrada",
-  "Felicitaciones y Reconocimientos 👍",
-  "Sugerencias de Mejora 💡",
-  "Áreas de Oportunidad (Quejas) ⚠️",
-  "Archivado / Resuelto ✅",
-];
-
 type Etiqueta = {
   id: string;
   nombre: string;
@@ -55,13 +49,10 @@ type Etiqueta = {
 
 const KanbanTab = () => {
   const [encuestas, setEncuestas] = useState<Encuesta[]>([]);
-  const [filteredEncuestas, setFilteredEncuestas] = useState<Encuesta[]>([]);
   const [etiquetasDisponibles, setEtiquetasDisponibles] = useState<Etiqueta[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [tagSearchQuery, setTagSearchQuery] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<string>("all");
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
-  const [selectedDay, setSelectedDay] = useState<string>("all");
+  const [range, setRange] = useState<PeriodRange>(null);
   const [selectedEncuesta, setSelectedEncuesta] = useState<Encuesta | null>(null);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,10 +61,6 @@ const KanbanTab = () => {
     fetchEncuestas();
     fetchEtiquetas();
   }, []);
-
-  useEffect(() => {
-    filterEncuestas();
-  }, [encuestas, selectedTag, selectedYear, selectedMonth, selectedDay]);
 
   const fetchEtiquetas = async () => {
     try {
@@ -136,46 +123,21 @@ const KanbanTab = () => {
 
 
 
-  const filterEncuestas = () => {
-    // ... (esta función no cambia)
+  const availableDates = useMemo(
+    () => encuestas.map((e) => new Date(e.fecha_creacion)),
+    [encuestas],
+  );
+
+  const filteredEncuestas = useMemo(() => {
     let filtered = encuestas;
     if (selectedTag === "sin-etiqueta") {
       filtered = filtered.filter((e) => !e.etiquetas || e.etiquetas.length === 0);
     } else if (selectedTag !== "all") {
       filtered = filtered.filter((e) => e.etiquetas && e.etiquetas.includes(selectedTag));
     }
-    filtered = filtered.filter((e) => {
-      const fecha = new Date(e.fecha_creacion);
-      if (selectedYear !== "all") {
-        if (fecha.getFullYear() !== parseInt(selectedYear)) return false;
-        if (selectedMonth !== "all") {
-          if (fecha.getMonth() !== parseInt(selectedMonth)) return false;
-          if (selectedDay !== "all") {
-            if (fecha.getDate() !== parseInt(selectedDay)) return false;
-          }
-        }
-      }
-      return true;
-    });
-    setFilteredEncuestas(filtered);
-  };
-
-  const getAvailableYears = () => {
-    const years = new Set<number>();
-    encuestas.forEach((e) => {
-      const year = new Date(e.fecha_creacion).getFullYear();
-      years.add(year);
-    });
-    return Array.from(years).sort((a, b) => b - a);
-  };
-
-  const getDaysInMonth = () => {
-    if (selectedYear === "all" || selectedMonth === "all") return [];
-    const year = parseInt(selectedYear);
-    const month = parseInt(selectedMonth);
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  };
+    filtered = filtered.filter((e) => isWithinRange(new Date(e.fecha_creacion), range));
+    return filtered;
+  }, [encuestas, selectedTag, range]);
 
   // ... (el resto de las funciones como handleDragStart, handleDrop, etc. no cambian)
   const handleDragStart = (e: React.DragEvent, encuestaId: string) => {
@@ -292,51 +254,8 @@ const KanbanTab = () => {
                 </div>
               </div>
 
-              {/* Date Filters */}
-              <TooltipProvider>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Tooltip>
-                    <Select value={selectedMonth} onValueChange={(value) => { setSelectedMonth(value); setSelectedDay("all"); }} disabled={selectedYear === "all"}>
-                      <TooltipTrigger asChild>
-                        <SelectTrigger className="w-full sm:w-[140px]">
-                          <SelectValue placeholder="Mes" />
-                        </SelectTrigger>
-                      </TooltipTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los meses</SelectItem>
-                        <SelectItem value="0">Enero</SelectItem>
-                        <SelectItem value="1">Febrero</SelectItem>
-                        <SelectItem value="2">Marzo</SelectItem>
-                        <SelectItem value="3">Abril</SelectItem>
-                        <SelectItem value="4">Mayo</SelectItem>
-                        <SelectItem value="5">Junio</SelectItem>
-                        <SelectItem value="6">Julio</SelectItem>
-                        <SelectItem value="7">Agosto</SelectItem>
-                        <SelectItem value="8">Septiembre</SelectItem>
-                        <SelectItem value="9">Octubre</SelectItem>
-                        <SelectItem value="10">Noviembre</SelectItem>
-                        <SelectItem value="11">Diciembre</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <TooltipContent><p>Filtra por mes (debes seleccionar un año).</p></TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <Select value={selectedDay} onValueChange={setSelectedDay} disabled={selectedMonth === "all"}>
-                      <TooltipTrigger asChild>
-                        <SelectTrigger className="w-full sm:w-[120px]">
-                          <SelectValue placeholder="Día" />
-                        </SelectTrigger>
-                      </TooltipTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los días</SelectItem>
-                        {getDaysInMonth().map((day) => <SelectItem key={day} value={day.toString()}>{day}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <TooltipContent><p>Filtra por día (debes seleccionar un mes).</p></TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
+              {/* Date Filter */}
+              <PeriodFilter dates={availableDates} onChange={setRange} />
             </div>
           </div>
         </CardContent>
@@ -346,6 +265,7 @@ const KanbanTab = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {ESTADOS.map((estado) => {
           const items = getEncuestasByEstado(estado);
+          const EstadoIcon = getEstadoIcon(estado);
           return (
             <div
               key={estado}
@@ -353,7 +273,10 @@ const KanbanTab = () => {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, estado)}
             >
-              <h3 className="font-semibold text-sm mb-1">{estado}</h3>
+              <h3 className="font-semibold text-sm mb-1 flex items-center gap-1.5">
+                <EstadoIcon className="h-4 w-4 shrink-0 text-[hsl(var(--imv-gray))]" />
+                {getEstadoLabel(estado)}
+              </h3>
               <p className="text-xs text-[hsl(var(--imv-gray))] mb-4">{items.length} comentarios</p>
               <div className="space-y-3">
                 {items.map((encuesta) => (
@@ -378,18 +301,22 @@ const KanbanTab = () => {
                               <p>Mover tarjeta a:</p>
                             </TooltipContent>
                             <DropdownMenuContent align="end" className="w-64">
-                              {ESTADOS.filter((e) => e !== estado).map((destino) => (
-                                <DropdownMenuItem
-                                  key={destino}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMoveCard(encuesta.id, destino);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  {destino}
-                                </DropdownMenuItem>
-                              ))}
+                              {ESTADOS.filter((e) => e !== estado).map((destino) => {
+                                const DestinoIcon = getEstadoIcon(destino);
+                                return (
+                                  <DropdownMenuItem
+                                    key={destino}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMoveCard(encuesta.id, destino);
+                                    }}
+                                    className="cursor-pointer gap-2"
+                                  >
+                                    <DestinoIcon className="h-4 w-4 shrink-0" />
+                                    {getEstadoLabel(destino)}
+                                  </DropdownMenuItem>
+                                );
+                              })}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </Tooltip>
