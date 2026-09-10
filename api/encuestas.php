@@ -38,8 +38,20 @@ if ($method === 'POST') {
     $comentario = $body['comentario'] ?? null;
     $deviceId = $body['device_id'] ?? null;
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    $codigoEnlace = $body['codigo_enlace'] ?? null;
 
-    // Rate limit por IP (siempre aplica)
+    $enlaceId = null;
+    if ($codigoEnlace) {
+        $stmt = $db->prepare('SELECT id, usado_en FROM enlaces_encuesta WHERE codigo = :codigo');
+        $stmt->execute(['codigo' => $codigoEnlace]);
+        $enlace = $stmt->fetch();
+        if (!$enlace || $enlace['usado_en'] !== null) {
+            json_error('Este enlace ya fue utilizado o no es válido.', 410);
+        }
+        $enlaceId = $enlace['id'];
+    }
+
+    // Rate limit por IP (siempre aplica, incluso con enlace de un solo uso)
     $stmt = $db->prepare(
         "SELECT count(*) FROM encuestas WHERE ip_address = :ip AND fecha_creacion >= now() - interval '1 hour'"
     );
@@ -48,8 +60,9 @@ if ($method === 'POST') {
         json_error('Demasiados envíos desde tu red. Intenta más tarde.', 429);
     }
 
-    // Límite de 1 envío por día por dispositivo
-    if ($deviceId) {
+    // Límite de 1 envío por día por dispositivo, salvo que se use un enlace de un solo uso
+    // (el enlace en sí ya garantiza que solo se puede usar una vez)
+    if (!$enlaceId && $deviceId) {
         $stmt = $db->prepare(
             'SELECT id FROM encuestas WHERE device_id = :device_id AND fecha_creacion::date = CURRENT_DATE LIMIT 1'
         );
@@ -76,7 +89,14 @@ if ($method === 'POST') {
             'device_id' => $deviceId,
             'ip' => $ip,
         ]);
-        json_ok(['id' => $stmt->fetchColumn()]);
+        $nuevaEncuestaId = $stmt->fetchColumn();
+
+        if ($enlaceId) {
+            $db->prepare('UPDATE enlaces_encuesta SET usado_en = now(), encuesta_id = :encuesta_id WHERE id = :id')
+               ->execute(['encuesta_id' => $nuevaEncuestaId, 'id' => $enlaceId]);
+        }
+
+        json_ok(['id' => $nuevaEncuestaId]);
     } catch (PDOException $e) {
         json_error('Alguna de las respuestas no tiene un valor válido', 400);
     }
