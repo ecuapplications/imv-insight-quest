@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
+import { getDeviceId, hasSubmittedToday, markSubmittedToday } from "@/lib/deviceId";
 import { ChevronLeft, ChevronRight, Send, ThumbsUp, ThumbsDown } from "lucide-react"; // 1. Importamos los iconos
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ const Survey = () => {
   const [honeypot, setHoneypot] = useState("");
   const [formLoadedAt] = useState(() => Date.now());
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [alreadyToday, setAlreadyToday] = useState(() => hasSubmittedToday());
 
   useEffect(() => {
     (window as any).onTurnstileSuccess = (token: string) => setTurnstileToken(token);
@@ -117,8 +119,17 @@ const Survey = () => {
         sitio_web: honeypot,
         segundos_transcurridos: Math.round((Date.now() - formLoadedAt) / 1000),
         turnstile_token: turnstileToken,
+        device_id: getDeviceId(),
       });
-      if (error) throw new Error(error);
+      if (error) {
+        if (error.includes("Ya registraste tu encuesta hoy")) {
+          markSubmittedToday();
+          setAlreadyToday(true);
+          return;
+        }
+        throw new Error(error);
+      }
+      markSubmittedToday();
       setCurrentStep(totalSteps);
     } catch (error) {
       console.error("Error submitting survey:", error);
@@ -128,7 +139,7 @@ const Survey = () => {
     }
   };
 
-  if (currentStep === totalSteps) {
+  if (currentStep === totalSteps || alreadyToday) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--survey-bg))] px-4">
         <div className="max-w-2xl w-full text-center space-y-8 animate-in fade-in-50 duration-700">
@@ -137,7 +148,9 @@ const Survey = () => {
               ¡Gracias!
             </h1>
             <p className="text-xl text-[hsl(var(--survey-text-light))] opacity-90">
-              Su opinión es muy importante para nosotros y nos ayuda a mejorar continuamente nuestros servicios.
+              {alreadyToday
+                ? "Ya registraste tu opinión hoy. ¡Gracias por tu participación!"
+                : "Su opinión es muy importante para nosotros y nos ayuda a mejorar continuamente nuestros servicios."}
             </p>
           </div>
           <div className="pt-8">

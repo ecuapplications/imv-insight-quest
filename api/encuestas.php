@@ -36,10 +36,33 @@ if ($method === 'POST') {
         }
     }
     $comentario = $body['comentario'] ?? null;
+    $deviceId = $body['device_id'] ?? null;
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+
+    // Rate limit por IP (siempre aplica)
+    $stmt = $db->prepare(
+        "SELECT count(*) FROM encuestas WHERE ip_address = :ip AND fecha_creacion >= now() - interval '1 hour'"
+    );
+    $stmt->execute(['ip' => $ip]);
+    if ((int) $stmt->fetchColumn() >= $config['rate_limit_ip_por_hora']) {
+        json_error('Demasiados envíos desde tu red. Intenta más tarde.', 429);
+    }
+
+    // Límite de 1 envío por día por dispositivo
+    if ($deviceId) {
+        $stmt = $db->prepare(
+            'SELECT id FROM encuestas WHERE device_id = :device_id AND fecha_creacion::date = CURRENT_DATE LIMIT 1'
+        );
+        $stmt->execute(['device_id' => $deviceId]);
+        if ($stmt->fetch()) {
+            json_error('Ya registraste tu encuesta hoy. ¡Gracias por tu participación!', 429);
+        }
+    }
+
     try {
         $stmt = $db->prepare(
-            'INSERT INTO encuestas (pregunta1_amabilidad, pregunta2_tiempo_espera, pregunta3_resolucion_dudas, pregunta4_limpieza, pregunta5_calificacion_general, comentario, estado_kanban)
-             VALUES (:p1, :p2, :p3, :p4, :p5, :comentario, :estado_kanban)
+            'INSERT INTO encuestas (pregunta1_amabilidad, pregunta2_tiempo_espera, pregunta3_resolucion_dudas, pregunta4_limpieza, pregunta5_calificacion_general, comentario, estado_kanban, device_id, ip_address)
+             VALUES (:p1, :p2, :p3, :p4, :p5, :comentario, :estado_kanban, :device_id, :ip)
              RETURNING id'
         );
         $stmt->execute([
@@ -50,6 +73,8 @@ if ($method === 'POST') {
             'p5' => $body['pregunta5_calificacion_general'],
             'comentario' => $comentario,
             'estado_kanban' => $comentario ? 'Bandeja de Entrada' : null,
+            'device_id' => $deviceId,
+            'ip' => $ip,
         ]);
         json_ok(['id' => $stmt->fetchColumn()]);
     } catch (PDOException $e) {
