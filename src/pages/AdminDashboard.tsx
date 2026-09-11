@@ -18,6 +18,7 @@ import GenerateLinkTab from "@/components/admin/GenerateLinkTab";
 import NotificationBell from "@/components/admin/NotificationBell";
 import { logout, isAuthenticated, getRole } from "@/lib/api";
 import { BASE_PATH } from "@/lib/basePath";
+import { registerAdminServiceWorker } from "@/lib/registerServiceWorker";
 
 const TABS = [
   { value: "comentarios", label: "Comentarios", shortLabel: "Comentarios", icon: MessageSquareText },
@@ -51,6 +52,12 @@ const AdminDashboard = () => {
       navigate("/admin-login");
     }
   }, [navigate]);
+
+  // El service worker (PWA instalable + push) solo se registra aquí y en
+  // AdminLogin — nunca en la encuesta pública.
+  useEffect(() => {
+    registerAdminServiceWorker();
+  }, []);
 
   const handleLogout = () => {
     logout();

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Lock, Eye, EyeOff } from "lucide-react";
 import { login, isAuthenticated } from "@/lib/api";
+import { registerAdminServiceWorker } from "@/lib/registerServiceWorker";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -20,6 +21,12 @@ const AdminLogin = () => {
       navigate("/admin");
     }
   }, [navigate]);
+
+  // El service worker (PWA instalable + push) solo se registra aquí y en
+  // AdminDashboard — nunca en la encuesta pública.
+  useEffect(() => {
+    registerAdminServiceWorker();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

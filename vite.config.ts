@@ -32,6 +32,12 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
       },
       registerType: "autoUpdate",
+      // El registro del service worker NO se inyecta automáticamente: se
+      // registra a mano (ver src/lib/registerServiceWorker.ts) únicamente
+      // desde las pantallas de admin, con un scope acotado a /admin. Así
+      // evitamos que Chrome ofrezca "instalar la app" en la encuesta pública
+      // (un service worker con scope "/" haría instalable cualquier ruta).
+      injectRegister: false,
       includeAssets: ["pwa-icons/apple-touch-icon.png"],
       manifest: {
         name: "IMV Health Digestive - Panel Administrativo",
@@ -42,7 +48,7 @@ export default defineConfig(({ mode }) => ({
         background_color: "#f4f5f7",
         display: "standalone",
         start_url: `${basePath}/admin-login`,
-        scope: `${basePath}/`,
+        scope: `${basePath}/admin`,
         icons: [
           { src: "pwa-icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "pwa-icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
